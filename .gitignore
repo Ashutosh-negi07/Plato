@@ -1,0 +1,119 @@
+# ═══════════════════════════════════════════════════════════════════
+#  Plato — Root .gitignore
+#  Covers: Java/Maven, Spring Boot, secrets, IDE, OS, logs, Docker
+# ═══════════════════════════════════════════════════════════════════
+
+
+# ── Secrets & Environment Variables ────────────────────────────────
+# NEVER commit real credentials. Use environment variables instead.
+
+.env
+.env.*
+!.env.example          # example file with placeholders IS safe to commit
+
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*.truststore
+
+
+# ── Spring Boot Local Overrides ─────────────────────────────────────
+# application-local.yml / application-local.properties are for local
+# developer settings (DB creds, local ports, debug flags).
+# They should never go into version control.
+
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
+**/application-secret.properties
+
+
+# ── Maven Build Output ───────────────────────────────────────────────
+
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+.mvn/wrapper/maven-wrapper.jar
+
+
+# ── Logs ─────────────────────────────────────────────────────────────
+
+logs/
+*.log
+*.log.*
+spring.log
+
+
+# ── IntelliJ IDEA ────────────────────────────────────────────────────
+
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+
+# ── Eclipse / STS ────────────────────────────────────────────────────
+
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+
+# ── VS Code ──────────────────────────────────────────────────────────
+
+.vscode/
+
+
+# ── NetBeans ─────────────────────────────────────────────────────────
+
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+
+# ── macOS ────────────────────────────────────────────────────────────
+
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+
+# ── Windows ──────────────────────────────────────────────────────────
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+
+# ── Docker ───────────────────────────────────────────────────────────
+# Docker override files often contain local secrets or port mappings.
+
+docker-compose.override.yml
+
+
+# ── Misc ──────────────────────────────────────────────────────────────
+
+HELP.md
+*.tmp
+*.swp
+*.bak
