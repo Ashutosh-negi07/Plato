@@ -78,43 +78,40 @@ Before marking any module complete:
 
 ### Tasks
 
-1. **Fix `PlatoApplication.java`** — update package to `com.miniproject.plato` (match new groupId).
+1. ✅ **Fix `PlatoApplication.java`** — update package to `com.miniproject.plato`. Added `@EnableJpaAuditing` for auto-timestamps.
 
-2. **Set up `application.properties` / `application.yml`**
-   ```yaml
-   spring.application.name: Plato
-   server.port: 8080
-   spring.datasource.url: jdbc:postgresql://localhost:5432/plato
-   spring.datasource.username: ${DB_USER}
-   spring.datasource.password: ${DB_PASSWORD}
-   spring.jpa.hibernate.ddl-auto: validate
-   spring.jpa.show-sql: false
-   spring.flyway.enabled: true
-   spring.flyway.locations: classpath:db/migration
-   ```
+2. ✅ **Set up `application.yml`** (replaced `application.properties`)
+   - `ddl-auto: validate` — Flyway owns the schema
+   - `open-in-view: false` — no DB connections held across HTTP layer
+   - HikariCP connection pool configured
+   - All secrets use `${ENV_VAR}` with **no default values** in the committed file
+   - Local dev overrides live in `application-local.yml` (git-ignored)
+   - Custom `plato.jwt.*`, `plato.session.*`, `plato.qr.*` properties
 
-3. **Create `common` package — shared infrastructure**
-   - `ApiResponse<T>` — universal response wrapper
-   - `PagedResponse<T>` — paginated response
-   - `GlobalExceptionHandler` (`@RestControllerAdvice`) — skeleton
-   - `BaseEntity` — abstract class with `id`, `createdAt`, `updatedAt`
-   - `AuditListener` — JPA `@EntityListeners` for auto-timestamps
+3. ✅ **Create `common` package — shared infrastructure**
+   - `ApiResponse<T>` — universal response wrapper (`@JsonInclude(NON_NULL)` keeps error responses lean)
+   - `PagedResponse<T>` — paginated response (wraps Spring's `Page<T>`, exposes only stable fields)
+   - `BaseEntity` — abstract class with `id` (UUID), `createdAt`, `updatedAt`; uses `@MappedSuperclass`
+   - No custom `AuditListener` needed — Spring Data's built-in `AuditingEntityListener` handles timestamps via `@EnableJpaAuditing` on `PlatoApplication`
 
-4. **Create `exception` package**
-   - `PlatoException` (base runtime exception)
-   - `ResourceNotFoundException`
-   - `UnauthorizedAccessException`
-   - `ConflictException`
-   - `ValidationException`
-   - `SessionExpiredException`
+4. ✅ **Create `exception` package**
+   - `PlatoException` (base — carries `HttpStatus` so one handler covers all)
+   - `ResourceNotFoundException` → 404
+   - `UnauthorizedAccessException` → 403
+   - `ConflictException` → 409
+   - `ValidationException` → 400
+   - `SessionExpiredException` → 401
+   - `GlobalExceptionHandler` (`@RestControllerAdvice`) — central handler, no try-catch needed in controllers
 
-5. **Set up Flyway migration directory**
+5. ✅ **Set up Flyway migration directory**
    ```
    src/main/resources/db/migration/
    ```
 
-6. **Create first Flyway migration** — `V1__create_enums.sql`
-   - All PostgreSQL enums: `user_role`, `user_status`, `restaurant_status`, `employee_role`, `session_status`, `cart_status`, `order_status`, `order_item_status`, `payment_method`, `payment_status`
+6. ✅ **Create first Flyway migration** — `V1__create_enums.sql`
+   - Enums created: `user_role`, `user_status`, `restaurant_status`, `employee_role`, `session_status`, `order_status`, `order_item_status`, `payment_method`, `payment_status`
+   - Note: `cart_status` removed — no separate `carts` table; cart items are rows in `cart_items` keyed by session
+   - `V2__create_users.sql` also created (moved here from Day 2 Task 1 since it logically follows the enums)
 
 7. **Verify app starts** — `./mvnw spring-boot:run`
 

@@ -12,7 +12,7 @@
 | 1 | [Project Foundation](#1-project-foundation) | Week 1 · Day 1 | ✅ Done |
 | 2 | [Common Package](#2-common-package) | Week 1 · Day 1 | ✅ Done |
 | 3 | [Exception Package & GlobalExceptionHandler](#3-exception-package--globalexceptionhandler) | Week 1 · Day 1 | ✅ Done |
-| 4 | Flyway & Enums | Week 1 · Day 1 | 🔲 Pending |
+| 4 | [Flyway & Migrations V1–V2](#4-flyway--migrations-v1v2) | Week 1 · Day 1 | ✅ Done |
 | 5 | Users & Auth | Week 1 · Day 2–3 | 🔲 Pending |
 | 6 | Restaurant Module | Week 2 · Day 6 | 🔲 Pending |
 | 7 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
@@ -506,5 +506,106 @@ Stack traces contain class names, file paths, and internal logic that could help
 - Every error response uses `ApiResponse` format automatically
 - Adding a new exception type requires only: extend `PlatoException`, pick an `HttpStatus` — the handler picks it up automatically
 - Security: internal details never leak to clients
+
+---
+
+---
+
+## 4. Flyway & Migrations V1–V2
+
+**Phase**: Week 1 · Day 1  
+**Date**: 2026-07-27  
+**Plan tasks**: Day 1 · Tasks 5 & 6
+
+---
+
+### What Was Done
+
+The Flyway migration directory was created and the first two migration files were written. These two files build the foundation of the entire database schema.
+
+---
+
+### 4.1 — Flyway Migration Directory
+
+```
+backend/src/main/resources/db/migration/
+  V1__create_enums.sql
+  V2__create_users.sql
+```
+
+This location matches the `spring.flyway.locations: classpath:db/migration` setting in `application.yml`. When the app starts, Flyway scans this directory, compares the files against its internal `flyway_schema_history` table, and runs any migrations it hasn't executed yet — in version order.
+
+**The golden rule**: once a migration file is committed and run on any environment, it must never be modified. Changes to the schema always go in a new numbered migration file.
+
+---
+
+### 4.2 — `V1__create_enums.sql`
+
+**File**: [`db/migration/V1__create_enums.sql`](../../backend/src/main/resources/db/migration/V1__create_enums.sql)
+
+All PostgreSQL custom enum types for the entire schema are created in the very first migration. Why first? Because every table that uses these types must be created **after** the types exist. If the enums were spread across multiple migrations, the ordering dependency would be fragile and easy to break.
+
+| Enum | Values | Used by |
+|------|--------|---------|
+| `user_role` | `SUPER_ADMIN`, `OWNER`, `EMPLOYEE` | `users` |
+| `user_status` | `ACTIVE`, `SUSPENDED`, `DELETED` | `users` |
+| `restaurant_status` | `ACTIVE`, `INACTIVE`, `SUSPENDED` | `restaurants` |
+| `employee_role` | `MANAGER`, `CHEF`, `WAITER`, `CASHIER` | `employees` |
+| `session_status` | `ACTIVE`, `CLOSED`, `EXPIRED` | `customer_sessions` |
+| `order_status` | `PENDING`, `ACCEPTED`, `PREPARING`, `READY`, `SERVED`, `CANCELLED` | `orders` |
+| `order_item_status` | `PENDING`, `PREPARING`, `READY`, `SERVED`, `CANCELLED` | `order_items` |
+| `payment_method` | `CASH`, `CARD`, `UPI`, `ONLINE` | `payments` |
+| `payment_status` | `PENDING`, `COMPLETED`, `FAILED`, `REFUNDED` | `payments` |
+
+**`cart_status` removed** — The original plan included `cart_status` but there is no separate `carts` table. Cart items are rows in `cart_items` associated to a session. The session's `session_status` covers the lifecycle of the cart implicitly.
+
+---
+
+### 4.3 — `V2__create_users.sql`
+
+**File**: [`db/migration/V2__create_users.sql`](../../backend/src/main/resources/db/migration/V2__create_users.sql)
+
+```sql
+CREATE TABLE users (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name     VARCHAR(100) NOT NULL,
+    email         VARCHAR(255) NOT NULL UNIQUE,
+    phone         VARCHAR(20),
+    password_hash VARCHAR(255) NOT NULL,
+    role          user_role    NOT NULL,
+    status        user_status  NOT NULL DEFAULT 'ACTIVE',
+    last_login    TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+```
+
+**Key decisions:**
+
+| Decision | Reason |
+|----------|--------|
+| `password_hash` not `password` | Enforces that only BCrypt hashes ever go in this column. The name makes it obvious. |
+| No `Customers` in this table | Customers use QR scan → `customer_sessions`. They never have accounts or passwords. |
+| `DEFAULT gen_random_uuid()` | UUID is generated at the database layer, not the application layer — consistent regardless of which service creates the row. |
+| `status DEFAULT 'ACTIVE'` | New accounts are active immediately. Suspension is an admin action, not the default state. |
+| `last_login TIMESTAMPTZ` (nullable) | Null means "never logged in". Updated on every successful authentication. |
+| 3 indexes (email, role, status) | Email: login lookup. Role: admin listing owners. Status: filtering suspended accounts. |
+
+---
+
+### Files Created
+
+| File | What it creates |
+|------|-----------------|
+| `db/migration/V1__create_enums.sql` | 9 PostgreSQL enum types |
+| `db/migration/V2__create_users.sql` | `users` table + 3 indexes |
+
+---
+
+### What This Enables
+
+- Flyway will run V1 and V2 automatically on next app startup (once PostgreSQL is running)
+- All subsequent table migrations (V3–V11) can reference `user_role`, `user_status`, and the `users` table
+- The `User` JPA entity (Day 2) will map to the `users` table that V2 creates
 
 ---
