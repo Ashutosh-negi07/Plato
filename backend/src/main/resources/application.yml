@@ -4,9 +4,9 @@ spring:
 
   # ── Database ──────────────────────────────────────────────────────────────
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/plato}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: PlatoHikariPool
@@ -39,8 +39,8 @@ server:
 # ── Plato Custom Properties ─────────────────────────────────────────────────
 plato:
   jwt:
-    secret: ${JWT_SECRET:dev-secret-change-in-production-must-be-at-least-32-chars}
-    expiration: 86400000          # 24 hours in milliseconds
+    secret: ${JWT_SECRET}              # required — set in env or application-local.yml
+    expiration: 86400000               # 24 hours in milliseconds
   session:
     timeout-minutes: 30           # customer session inactivity timeout
   qr:
