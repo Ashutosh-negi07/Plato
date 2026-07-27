@@ -24,7 +24,7 @@ spring:
     properties:
       hibernate:
         format_sql: false
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # dialect is auto-detected from the JDBC driver — no need to set it explicitly
 
   # ── Flyway ────────────────────────────────────────────────────────────────
   flyway:
