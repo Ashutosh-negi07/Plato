@@ -13,7 +13,7 @@
 | 2 | [Common Package](#2-common-package) | Week 1 · Day 1 | ✅ Done |
 | 3 | [Exception Package & GlobalExceptionHandler](#3-exception-package--globalexceptionhandler) | Week 1 · Day 1 | ✅ Done |
 | 4 | [Flyway & Migrations V1–V2](#4-flyway--migrations-v1v2) | Week 1 · Day 1 | ✅ Done |
-| 5 | Users & Auth | Week 1 · Day 2–3 | 🔲 Pending |
+| 5 | [User Module — Day 2](#5-user-module--day-2) | Week 1 · Day 2 | ✅ Done |
 | 6 | Restaurant Module | Week 2 · Day 6 | 🔲 Pending |
 | 7 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
 | 8 | Employees | Week 2 · Day 8 | 🔲 Pending |
@@ -607,5 +607,310 @@ CREATE TABLE users (
 - Flyway will run V1 and V2 automatically on next app startup (once PostgreSQL is running)
 - All subsequent table migrations (V3–V11) can reference `user_role`, `user_status`, and the `users` table
 - The `User` JPA entity (Day 2) will map to the `users` table that V2 creates
+
+---
+
+---
+
+## 5. User Module — Day 2
+
+**Phase**: Week 1 · Day 2  
+**Date**: 2026-07-27  
+**Plan task**: Day 2 · Task 2
+
+---
+
+### What Was Done
+
+The `user` package was created with 6 files: two enums, one JPA entity, one repository, one service interface, and one service implementation.
+
+---
+
+### Why a `user/` Folder and Not `controller/`, `service/`, `repository/` Folders?
+
+This is one of the most important structural decisions in the entire project, and it directly affects how maintainable the codebase is as it grows.
+
+#### The two approaches
+
+**Layer-based packaging (what most tutorials show)**
+```
+com.miniproject.plato/
+├── controller/
+│   ├── UserController.java
+│   ├── RestaurantController.java
+│   └── OrderController.java
+├── service/
+│   ├── UserService.java
+│   ├── RestaurantService.java
+│   └── OrderService.java
+├── repository/
+│   ├── UserRepository.java
+│   ├── RestaurantRepository.java
+│   └── OrderRepository.java
+└── model/
+    ├── User.java
+    └── Restaurant.java
+```
+
+**Feature-based packaging (what Plato uses)**
+```
+com.miniproject.plato/
+├── user/
+│   ├── User.java
+│   ├── UserRepository.java
+│   ├── UserService.java
+│   └── UserServiceImpl.java
+├── restaurant/
+│   ├── Restaurant.java
+│   ├── RestaurantRepository.java
+│   └── RestaurantService.java
+└── order/
+    ├── Order.java
+    └── OrderService.java
+```
+
+#### Why feature-based is the right choice here
+
+**1. High cohesion — everything about a feature is in one place.**  
+When you need to change how a `User` is created, you open the `user/` folder. You don't hunt across `controller/`, `service/`, `repository/`, and `model/` folders. All the code that belongs together, lives together.
+
+**2. Layer-based collapses under scale.**  
+With 11 entities (users, restaurants, tables, employees, menu, orders, etc.), the layer-based approach produces:
+- `controller/` with 11 controllers
+- `service/` with 22 files (interface + impl per feature)
+- `repository/` with 11 repositories
+- `model/` with 11 entities
+
+Navigating to `OrderServiceImpl` means going into `service/`, scrolling past every other service. In feature-based, you go straight to `order/`.
+
+**3. The Spring annotations don't care about folder structure.**  
+`@Service`, `@Repository`, `@RestController` work the same regardless of which folder the file is in. Spring scans the entire `com.miniproject.plato` package. The folder is for **humans**, not for Spring.
+
+**4. It mirrors the business domain.**  
+The business thinks in terms of "users", "restaurants", "orders" — not in terms of "services" and "repositories". Feature-based packaging makes the code structure match the business structure. A new developer reading the codebase understands what the system does just by looking at the folder names.
+
+**5. Package-private encapsulation becomes possible.**  
+In layer-based packaging, every class must be `public` because it's accessed from a different package (`UserService` in `service/` is called from `UserController` in `controller/`).  
+In feature-based packaging, classes that are only used within a feature can be package-private (no access modifier). For example, `UserServiceImpl` could be package-private — nothing outside `user/` needs to instantiate it directly. Only `UserService` (the interface) needs to be public.
+
+---
+
+### Each File Explained
+
+#### `UserRole.java` — Java Enum
+
+```java
+public enum UserRole {
+    SUPER_ADMIN, OWNER, EMPLOYEE
+}
+```
+
+A Java enum that mirrors the `user_role` PostgreSQL enum from `V1__create_enums.sql`. Its only job is to give the Java code type safety — you can never accidentally assign an invalid role string because the compiler prevents it. The same three values must exist in both the Java enum and the PostgreSQL enum, exactly — Hibernate uses the `name()` of each enum constant (e.g. `"OWNER"`) when reading from and writing to the database.
+
+---
+
+#### `UserStatus.java` — Java Enum
+
+```java
+public enum UserStatus {
+    ACTIVE, SUSPENDED, DELETED
+}
+```
+
+Same concept as `UserRole`. Maps to `user_status` PostgreSQL enum. `DELETED` is a soft-delete state — the row stays in the database for audit purposes but is treated as inaccessible by the application. No row is ever physically deleted from `users`.
+
+---
+
+#### `User.java` — JPA Entity
+
+```java
+@Entity
+@Table(name = "users")
+public class User extends BaseEntity { ... }
+```
+
+This is the Java representation of a row in the `users` table. Every field maps to a column. The annotations tell Hibernate exactly how to translate between Java objects and SQL rows.
+
+Key annotation decisions:
+
+| Annotation | What it does |
+|------------|--------------|
+| `@Entity` | Marks this class as a JPA-managed object; Hibernate will map it to a table |
+| `@Table(name = "users")` | The table is named `users` (not `user`); explicit to avoid surprises |
+| `extends BaseEntity` | Inherits `id` (UUID), `createdAt`, `updatedAt` — auto-managed, never set manually |
+| `@Enumerated(EnumType.STRING)` | Store enum as its name (e.g. `"OWNER"`) not as an integer index |
+| `@Column(columnDefinition = "user_role")` | Tells Hibernate the actual PostgreSQL column type is `user_role` (a custom enum), not plain `VARCHAR` |
+| `@Builder.Default` on `status` | Without this, Lombok's `@Builder` ignores field initializers — `status` would be `null` even though the field says `= UserStatus.ACTIVE` |
+| `@NoArgsConstructor` | Required by Hibernate — it creates entity instances using a no-arg constructor via reflection |
+| `@AllArgsConstructor` | Required by Lombok when both `@Builder` and `@NoArgsConstructor` are present together |
+
+**Why `passwordHash` and not `password`?**  
+The column is named `password_hash`, and the Java field is `passwordHash`. This is an explicit design choice. If someone reads the schema or the Java class, the name makes it obvious that what's stored here is a BCrypt hash — never a plain-text password. It's impossible to accidentally confuse the raw password with the stored hash.
+
+---
+
+#### `UserRepository.java` — JPA Repository
+
+```java
+@Repository
+public interface UserRepository extends JpaRepository<User, UUID> {
+    Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
+}
+```
+
+This interface has no method bodies. Spring Data JPA reads the method names at startup and generates the SQL automatically:
+- `findByEmail(email)` → `SELECT * FROM users WHERE email = ?`
+- `existsByEmail(email)` → `SELECT COUNT(*) > 0 FROM users WHERE email = ?`
+
+By extending `JpaRepository<User, UUID>`, we also get for free:
+- `findById(UUID)`, `findAll()`, `save(User)`, `delete(User)`, `count()`, and more.
+
+Nothing in this interface needs to be written for standard operations. Custom methods are only added when the query cannot be expressed through method naming — in that case, `@Query("SELECT u FROM User u WHERE ...")` is used.
+
+---
+
+#### `UserService.java` — Interface (Contract)
+
+```java
+public interface UserService {
+    User findById(UUID id);
+    User findByEmail(String email);
+    boolean existsByEmail(String email);
+    User save(User user);
+}
+```
+
+This is the contract. Any class that needs to work with users depends on this interface, not on the implementation. This matters for three reasons:
+
+1. **Decoupling**: `AuthServiceImpl` (Day 3) will inject `UserService`. If we ever swap the implementation, `AuthServiceImpl` doesn't change.
+2. **Testability**: In unit tests, `UserService` can be mocked with Mockito in one line. Testing `AuthServiceImpl` doesn't require a real database.
+3. **Clarity**: The interface shows what operations exist on users. It's a readable API surface — you understand what `UserService` can do without reading any implementation code.
+
+---
+
+#### `UserServiceImpl.java` — Implementation
+
+```java
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class UserServiceImpl implements UserService {
+    private final UserRepository userRepository;
+    ...
+}
+```
+
+This is where business rules live. Three annotations do the heavy lifting:
+
+**`@Service`** — tells Spring this is a service bean; it gets picked up by component scanning and can be injected anywhere.
+
+**`@RequiredArgsConstructor`** (Lombok) — generates a constructor for all `final` fields. This is constructor injection — the recommended way to inject dependencies in Spring Boot. No `@Autowired` needed. The `UserRepository` is injected automatically when Spring creates this bean.
+
+**`@Transactional(readOnly = true)` on the class** — every method in this class runs in a database transaction. `readOnly = true` is an optimization: Spring tells the database connection pool that this transaction won't write anything, allowing the DB to skip certain locking operations. This is the default for all methods.
+
+**`@Transactional` on `save()`** — overrides the class-level `readOnly = true` for just this method, giving it a writable transaction.
+
+**The duplicate email check in `save()`:**
+```java
+if (user.getId() == null && userRepository.existsByEmail(user.getEmail())) {
+    throw new ConflictException(...);
+}
+```
+The condition `user.getId() == null` distinguishes create from update. On create, the entity hasn't been persisted yet so `id` is null. On update, `id` is already set. This prevents throwing a conflict error when a user updates their own data (they already own their email address).
+
+---
+
+### User API Flow & Workflow
+
+No `UserController` exists yet — that comes later. Here is the full flow once the controller is added and how these pieces connect:
+
+```
+HTTP Request
+    │
+    ▼
+[UserController]          — receives HTTP, validates DTO with @Valid, calls service
+    │
+    ▼
+[UserService]             — interface; Spring injects UserServiceImpl
+    │
+    ▼
+[UserServiceImpl]         — applies business rules (conflict check, not-found throw)
+    │
+    ▼
+[UserRepository]          — Spring Data JPA generates SQL, executes via Hibernate
+    │
+    ▼
+[PostgreSQL — users table] — returns result set
+    │
+    ▲ (back up the chain)
+    │
+[UserServiceImpl]         — returns User entity
+    │
+    ▼
+[UserController]          — maps entity to DTO, wraps in ApiResponse.ok(...)
+    │
+    ▼
+HTTP Response             — { "success": true, "message": "...", "data": { ... } }
+```
+
+#### Concrete example — login flow (Day 3)
+
+When a staff member logs in (`POST /api/v1/auth/login`):
+
+```
+1. AuthController receives LoginRequest { email, password }
+2. AuthController calls AuthService.login(email, password)
+3. AuthServiceImpl calls UserService.findByEmail(email)
+       └── UserServiceImpl calls UserRepository.findByEmail(email)
+           └── SQL: SELECT * FROM users WHERE email = ?
+               └── If not found → ResourceNotFoundException → GlobalExceptionHandler → 404
+               └── If found → returns User entity
+4. AuthServiceImpl checks user.getStatus() == ACTIVE
+       └── If SUSPENDED/DELETED → ValidationException → 403
+5. AuthServiceImpl compares raw password with user.getPasswordHash() using BCrypt
+       └── If mismatch → ValidationException → 401
+6. AuthServiceImpl generates 24h JWT containing user.getId(), user.getRole()
+7. AuthServiceImpl calls UserService.save(user.setLastLogin(now()))
+       └── SQL: UPDATE users SET last_login = now(), updated_at = now() WHERE id = ?
+8. AuthController wraps token in LoginResponse, returns ApiResponse.ok("Login successful", loginResponse)
+```
+
+#### Concrete example — get user by ID (admin)
+
+```
+1. GET /api/v1/users/{id}
+2. JwtAuthenticationFilter reads Authorization: Bearer <token> header
+       └── Validates token → extracts userId, role
+       └── Sets SecurityContext (Spring Security knows who this is)
+3. @PreAuthorize("hasRole('SUPER_ADMIN')") on the controller method blocks non-admins → 403
+4. UserController calls UserService.findById(id)
+5. UserServiceImpl calls UserRepository.findById(id)
+       └── If not found → ResourceNotFoundException → GlobalExceptionHandler → 404
+6. Returns User entity → mapped to UserResponse DTO (never return the raw entity with passwordHash)
+7. ApiResponse.ok("User found", userResponse) → 200
+```
+
+---
+
+### Files Created
+
+| File | Type | Purpose |
+|------|------|---------|
+| `user/UserRole.java` | Java enum | Maps to `user_role` PostgreSQL enum |
+| `user/UserStatus.java` | Java enum | Maps to `user_status` PostgreSQL enum |
+| `user/User.java` | JPA entity | Maps to `users` table |
+| `user/UserRepository.java` | JPA repository | SQL generated from method names |
+| `user/UserService.java` | Interface | Public contract; what other packages depend on |
+| `user/UserServiceImpl.java` | Service impl | Business logic, transaction management |
+
+---
+
+### What This Enables
+
+- Day 3's `AuthServiceImpl` can inject `UserService` to look up users during login
+- Day 3's `UserDetailsServiceImpl` (Spring Security) will call `UserRepository.findByEmail()` directly to load the user for JWT validation
+- The `DataInitializer` (Day 2 Task 3) can call `UserService.save()` to seed the Super Admin
+- `@Transactional` boundaries are correctly set — no risk of lazy-loading exceptions outside a transaction
 
 ---
