@@ -12,4 +12,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    /**
+     * Used by DataInitializer to check if a SUPER_ADMIN already exists
+     * before attempting to seed one — avoids a duplicate insert.
+     */
+    boolean existsByRole(UserRole role);
 }

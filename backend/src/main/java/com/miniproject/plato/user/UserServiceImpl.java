@@ -9,18 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-/**
- * Implementation of {@link UserService}.
- *
- * <p>All business rules live here — controllers only call service methods and
- * return the result. No business logic ever goes in a controller.
- *
- * <p>{@code @Transactional(readOnly = true)} is the default for all query methods.
- * Write methods override this with {@code @Transactional}.
- *
- * <p>{@code @RequiredArgsConstructor} generates a constructor for all {@code final} fields,
- * which is the recommended way to inject dependencies — no {@code @Autowired} needed.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

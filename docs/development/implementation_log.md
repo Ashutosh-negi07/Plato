@@ -14,7 +14,7 @@
 | 3 | [Exception Package & GlobalExceptionHandler](#3-exception-package--globalexceptionhandler) | Week 1 · Day 1 | ✅ Done |
 | 4 | [Flyway & Migrations V1–V2](#4-flyway--migrations-v1v2) | Week 1 · Day 1 | ✅ Done |
 | 5 | [User Module — Day 2](#5-user-module--day-2) | Week 1 · Day 2 | ✅ Done |
-| 6 | Restaurant Module | Week 2 · Day 6 | 🔲 Pending |
+| 6 | [Super Admin Seed — Day 2 Task 3](#6-super-admin-seed--day-2-task-3) | Week 1 · Day 2 | ✅ Done |
 | 7 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
 | 8 | Employees | Week 2 · Day 8 | 🔲 Pending |
 | 9 | Menu | Week 2 · Day 9 | 🔲 Pending |
@@ -912,5 +912,198 @@ When a staff member logs in (`POST /api/v1/auth/login`):
 - Day 3's `UserDetailsServiceImpl` (Spring Security) will call `UserRepository.findByEmail()` directly to load the user for JWT validation
 - The `DataInitializer` (Day 2 Task 3) can call `UserService.save()` to seed the Super Admin
 - `@Transactional` boundaries are correctly set — no risk of lazy-loading exceptions outside a transaction
+
+---
+
+---
+
+## 6. Super Admin Seed — Day 2 Task 3
+
+**Phase**: Week 1 · Day 2  
+**Date**: 2026-07-28  
+**Plan task**: Day 2 · Task 3
+
+---
+
+### What Was Done
+
+Four things were created/modified to implement idempotent super admin seeding on first startup:
+
+1. `plato.seed.admin.*` properties added to `application.yml` and `application-local.yml`
+2. `UserRepository` gained a new query method: `existsByRole(UserRole)`
+3. `config/AppConfig.java` created with the `PasswordEncoder` bean
+4. `user/DataInitializer.java` created as the seeding component
+
+---
+
+### What is DataInitializer?
+
+`DataInitializer` is a class that implements Spring's `CommandLineRunner` interface. Spring Boot automatically calls its `run()` method once, after the entire application context is fully loaded — every time the server starts.
+
+Its job: **check if a Super Admin exists in the database. If not, create one.**
+
+This solves the chicken-and-egg problem: the system needs at least one privileged user to create other users, but there is no way to create that first user through the API because the API requires authentication. The seeder bypasses this by writing directly to the database at startup.
+
+---
+
+### Why `CommandLineRunner` and Not Something Else?
+
+There are several ways to run code at startup in Spring Boot. Here’s why `CommandLineRunner` is the right choice:
+
+| Option | Problem |
+|--------|---------|
+| `@PostConstruct` on a bean | Runs during bean initialization — Flyway migrations may not have finished yet. Writing to the DB here risks a missing table error. |
+| `ApplicationListener<ContextRefreshedEvent>` | Fires on every context refresh, including after hot-reload (DevTools). Would try to seed on every file save in dev. |
+| `@EventListener(ApplicationReadyEvent.class)` | Valid alternative — same timing as `CommandLineRunner`. Works equally well. |
+| `CommandLineRunner` | Runs **after** all beans are created AND Flyway is done AND the context is fully ready. Clean, simple, idiomatic Spring Boot. |
+
+`CommandLineRunner` wins because it’s guaranteed to run after everything is ready, it’s the most idiomatic interface for "do this once at startup", and it’s trivial to test.
+
+---
+
+### Why is the Check Idempotent?
+
+```java
+if (userRepository.existsByRole(UserRole.SUPER_ADMIN)) {
+    log.info("Super Admin already exists — skipping seed.");
+    return;
+}
+```
+
+The server may restart many times during development and in production. Without this guard:
+- Every restart would try to `INSERT` a new super admin row
+- The second attempt would throw a database constraint violation (email is `UNIQUE`)
+- The server would crash on startup
+
+With the guard: the first run creates the admin. Every subsequent run detects it and returns immediately. The database never sees a duplicate insert attempt.
+
+`existsByRole` generates this SQL:
+```sql
+SELECT COUNT(*) > 0 FROM users WHERE role = 'SUPER_ADMIN'
+```
+One cheap query, no data transferred, no entity hydration. Fast.
+
+---
+
+### Where Does the Password Go?
+
+```java
+.passwordHash(passwordEncoder.encode(adminPassword))
+```
+
+The plain-text password (`Admin@1234` in dev) **never touches the database**. `passwordEncoder.encode()` runs BCrypt on it — producing a 60-character hash like:
+```
+$2a$10$XQCg3zAVFe3vhXNWb0K7fuJd7fNtPh3H1M6v8/sFnGxlqDnRhTm0u
+```
+That hash is what gets stored in `password_hash`. BCrypt is a one-way function — it cannot be reversed. During login, BCrypt compares the incoming plain-text against the stored hash without ever decrypting it.
+
+---
+
+### Why a Separate `AppConfig.java` for PasswordEncoder?
+
+The `PasswordEncoder` bean needs to be available to `DataInitializer` which runs on Day 2. The full `SecurityConfig` (filter chain, JWT, CORS rules) is a Day 3 concern.
+
+If `PasswordEncoder` was defined inside `SecurityConfig`, then:
+- `DataInitializer` (in the `user` package) would depend on `SecurityConfig` (in the `security` package)
+- That creates a coupling between unrelated layers at an early stage
+- More importantly, defining an incomplete `SecurityConfig` now could break the Spring Security auto-configuration prematurely
+
+By putting `PasswordEncoder` in `config/AppConfig.java`:
+- It’s available to any bean that needs it, right now
+- Day 3’s `SecurityConfig` can import or inject it from `AppConfig`
+- No cross-package coupling introduced before it’s needed
+
+---
+
+### Why `@Value` and Not `@ConfigurationProperties`?
+
+There are two ways to bind properties to a class in Spring Boot:
+
+**`@Value`** — injects individual properties:
+```java
+@Value("${plato.seed.admin.email}")
+private String adminEmail;
+```
+
+**`@ConfigurationProperties`** — binds a whole prefix to a POJO:
+```java
+@ConfigurationProperties(prefix = "plato.seed.admin")
+public class SeedProperties {
+    private String email;
+    private String password;
+    private String name;
+}
+```
+
+`@ConfigurationProperties` is better when:
+- You have many related properties
+- You want type safety and IDE autocompletion
+- You want validation on startup (`@NotBlank`, etc.)
+
+`@Value` is fine when:
+- You have only 2–3 values
+- The class only uses these values in one method
+- You don’t want to create an extra POJO just for a one-time seeder
+
+`DataInitializer` only has 3 properties used in one `run()` method. `@Value` is the appropriate choice here.
+
+---
+
+### Where Do the Credentials Come From?
+
+```
+In development:
+  application-local.yml (git-ignored) → plato.seed.admin.*
+    email:    admin@plato.com
+    password: Admin@1234
+    name:     Super Admin
+
+In production:
+  Environment variables → ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME
+  These map to ${ADMIN_EMAIL}, ${ADMIN_PASSWORD}, ${ADMIN_NAME} in application.yml
+  The committed application.yml has NO default values for these — the app refuses to start without them
+```
+
+This two-tier approach means:
+- Local developers don’t need to set environment variables — just use the file
+- Production environments never have credentials in any committed file
+- Rotating the production password means updating one environment variable, not touching code
+
+---
+
+### Startup Log Output
+
+On **first run** (no Super Admin yet):
+```
+INFO  DataInitializer : Super Admin seeded successfully.
+INFO  DataInitializer : Login email → admin@plato.com
+WARN  DataInitializer : Using default seed password. Change it immediately via the admin panel in production.
+```
+
+On **every subsequent restart**:
+```
+INFO  DataInitializer : Super Admin already exists — skipping seed.
+```
+
+---
+
+### Files Created / Modified
+
+| File | Type | What changed |
+|------|------|--------------|
+| `application.yml` | Config | Added `plato.seed.admin.*` block with `${ENV_VAR}` references, no defaults |
+| `application-local.yml` | Local config | Added dev credentials (git-ignored) |
+| `user/UserRepository.java` | Repository | Added `existsByRole(UserRole)` method |
+| `config/AppConfig.java` | Config bean | `PasswordEncoder` bean (BCrypt, 10 rounds) |
+| `user/DataInitializer.java` | Component | `CommandLineRunner` implementation, idempotent seeder |
+
+---
+
+### What This Enables
+
+- On every fresh database, there is always one Super Admin to log in with
+- No manual SQL inserts needed to bootstrap the system
+- The first thing Day 3’s JWT login flow can be tested against is this admin account
+- `PasswordEncoder` bean is ready for Day 3’s `AuthServiceImpl` to use for login verification
 
 ---

@@ -42,9 +42,14 @@ plato:
     secret: ${JWT_SECRET}              # required — set in env or application-local.yml
     expiration: 86400000               # 24 hours in milliseconds
   session:
-    timeout-minutes: 30           # customer session inactivity timeout
+    timeout-minutes: 30                # customer session inactivity timeout
   qr:
     base-url: ${QR_BASE_URL:http://localhost:3000/qr}   # prefix for QR code URLs
+  seed:
+    admin:
+      email: ${ADMIN_EMAIL}            # required — set in env or application-local.yml
+      password: ${ADMIN_PASSWORD}      # required — set in env or application-local.yml
+      name: ${ADMIN_NAME:Super Admin}  # display name for the seeded super admin
 
 # ── Swagger / OpenAPI ────────────────────────────────────────────────────────
 springdoc:
