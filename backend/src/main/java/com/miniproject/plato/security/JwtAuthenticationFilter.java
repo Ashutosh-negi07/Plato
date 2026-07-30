@@ -52,7 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             /**
              * Extracts the role claim from a validated token.
              */
-            
+
 
 
             // Step 4: Load full user details from DB using email
