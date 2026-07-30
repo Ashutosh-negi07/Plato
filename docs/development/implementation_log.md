@@ -15,18 +15,19 @@
 | 4 | [Flyway & Migrations V1–V2](#4-flyway--migrations-v1v2) | Week 1 · Day 1 | ✅ Done |
 | 5 | [User Module — Day 2](#5-user-module--day-2) | Week 1 · Day 2 | ✅ Done |
 | 6 | [Super Admin Seed — Day 2 Task 3](#6-super-admin-seed--day-2-task-3) | Week 1 · Day 2 | ✅ Done |
-| 7 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
-| 8 | Employees | Week 2 · Day 8 | 🔲 Pending |
-| 9 | Menu | Week 2 · Day 9 | 🔲 Pending |
-| 10 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
-| 11 | Cart | Week 3 · Day 12 | 🔲 Pending |
-| 12 | Orders | Week 3 · Day 13 | 🔲 Pending |
-| 13 | Payments | Week 3 · Day 14 | 🔲 Pending |
-| 14 | Feedback | Week 3 · Day 15 | 🔲 Pending |
-| 15 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
-| 16 | Analytics | Week 4 · Day 17 | 🔲 Pending |
-| 17 | Testing | Week 4 · Day 18 | 🔲 Pending |
-| 18 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
+| 7 | [Spring Security & JWT — Day 3 Task 1](#7-spring-security--jwt--day-3-task-1) | Week 1 · Day 3 | ✅ Done |
+| 8 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
+| 9 | Employees | Week 2 · Day 8 | 🔲 Pending |
+| 10 | Menu | Week 2 · Day 9 | 🔲 Pending |
+| 11 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
+| 12 | Cart | Week 3 · Day 12 | 🔲 Pending |
+| 13 | Orders | Week 3 · Day 13 | 🔲 Pending |
+| 14 | Payments | Week 3 · Day 14 | 🔲 Pending |
+| 15 | Feedback | Week 3 · Day 15 | 🔲 Pending |
+| 16 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
+| 17 | Analytics | Week 4 · Day 17 | 🔲 Pending |
+| 18 | Testing | Week 4 · Day 18 | 🔲 Pending |
+| 19 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
 
 ---
 
@@ -1105,5 +1106,197 @@ INFO  DataInitializer : Super Admin already exists — skipping seed.
 - No manual SQL inserts needed to bootstrap the system
 - The first thing Day 3’s JWT login flow can be tested against is this admin account
 - `PasswordEncoder` bean is ready for Day 3’s `AuthServiceImpl` to use for login verification
+
+---
+
+---
+
+## 7. Spring Security & JWT — Day 3 Task 1
+
+**Phase**: Week 1 · Day 3
+**Date**: 2026-07-30
+**Plan tasks**: Day 3 · Task 1 (security package)
+
+---
+
+### What Was Done
+
+Five files were created to add stateless JWT authentication to the application. Before this task, Spring Security's auto-configuration was blocking every endpoint by default. After this task, the app has a precise, configurable security setup.
+
+---
+
+### The Big Picture — How JWT Auth Works in Plato
+
+```
+Client sends:  POST /api/v1/auth/login  { email, password }
+                         │
+                ┌────────▼────────┐
+                │  AuthController  │  (Day 3 Task 3 — auth module)
+                └────────┬────────┘
+                         │ calls AuthService → validates password → calls JwtTokenProvider
+                ┌────────▼──────────────┐
+                │  JwtTokenProvider     │  generates a signed JWT (sub=userId, role=OWNER etc.)
+                └────────┬──────────────┘
+                         │ returns token to client
+
+Client sends:  GET /api/v1/restaurants  { Authorization: Bearer <token> }
+                         │
+                ┌────────▼──────────────────┐
+                │  JwtAuthenticationFilter  │  reads & validates token on EVERY request
+                └────────┬──────────────────┘
+                         │ sets SecurityContext (Spring Security knows who this is)
+                ┌────────▼──────────────────┐
+                │  SecurityConfig rules     │  checks @PreAuthorize / path rules
+                └────────┬──────────────────┘
+                         │
+                ┌────────▼──────────────────┐
+                │  Controller executes      │
+                └───────────────────────────┘
+```
+
+---
+
+### File Creation Order (and Why)
+
+Each file depends on the previous, so they were created in this order:
+
+```
+1. SecurityProperties.java       ← reads JWT config from application.yml
+2. JwtTokenProvider.java         ← uses SecurityProperties to sign/verify tokens
+3. UserDetailsServiceImpl.java   ← loads a user from DB for Spring Security
+4. JwtAuthenticationFilter.java  ← uses JwtTokenProvider; sets SecurityContext
+5. SecurityConfig.java           ← wires everything together; defines path rules
+```
+
+---
+
+### 7.1 — `SecurityProperties.java`
+
+**File**: [`security/SecurityProperties.java`](../../backend/src/main/java/com/miniproject/plato/security/SecurityProperties.java)
+
+Binds `plato.jwt.*` from `application.yml` into a typed Java object. `@ConfigurationProperties(prefix = "plato.jwt")` tells Spring to map `plato.jwt.secret` → `secret` field and `plato.jwt.expiration` → `expiration` field. `@Validated` + `@NotBlank` means the app refuses to start if `JWT_SECRET` env var is missing.
+
+**Why not `@Value` scattered everywhere?** One class, one binding. Any class that needs JWT config injects `SecurityProperties` — never reads from `application.yml` directly.
+
+**Why not a Java `record`?** Spring's `@ConfigurationProperties` binding works by calling setters. Records are immutable — no setters. Regular class with Lombok `@Getter @Setter` is required.
+
+---
+
+### 7.2 — `JwtTokenProvider.java`
+
+**File**: [`security/JwtTokenProvider.java`](../../backend/src/main/java/com/miniproject/plato/security/JwtTokenProvider.java)
+
+The JWT engine. Three responsibilities:
+
+| Method | What it does |
+|--------|-------------|
+| `generateToken(userId, role)` | Builds and signs a JWT with `sub=userId`, `role=OWNER` etc., `exp=now+24h` |
+| `validateToken(token)` | Returns `true` if signature is valid and token is not expired; never throws |
+| `getUserIdFromToken(token)` | Extracts the subject (userId) from a valid token |
+| `getRoleFromToken(token)` | Extracts the `role` custom claim |
+
+**Algorithm**: HMAC-SHA256 (symmetric) — one secret to sign and verify. Appropriate for a single-service backend.
+
+**Why store `role` in the token?** The filter can check the user's role without hitting the database on every request. Fast.
+
+**Why `validateToken` returns `false` and never throws?** A token failure is not exceptional — it's expected for every unauthenticated request. Throwing would log a stack trace on every 401. Returning `false` is clean.
+
+---
+
+### 7.3 — `UserDetailsServiceImpl.java`
+
+**File**: [`security/UserDetailsServiceImpl.java`](../../backend/src/main/java/com/miniproject/plato/security/UserDetailsServiceImpl.java)
+
+Implements Spring Security's `UserDetailsService` interface. Spring calls `loadUserByUsername(email)` to load a user during:
+- Password verification on login (via `AuthenticationManager`)
+- JWT filter processing (to build the `Authentication` object)
+
+Maps `UserRole.OWNER` → `"ROLE_OWNER"` (the `ROLE_` prefix is required so `@PreAuthorize("hasRole('OWNER')")` works).
+
+Passes `disabled` and `accountLocked` flags from `UserStatus` so Spring Security enforces them automatically.
+
+**`@Transactional(readOnly = true)`** — signals to the DB that this transaction won't write, enabling performance optimisations.
+
+---
+
+### 7.4 — `JwtAuthenticationFilter.java`
+
+**File**: [`security/JwtAuthenticationFilter.java`](../../backend/src/main/java/com/miniproject/plato/security/JwtAuthenticationFilter.java)
+
+Extends `OncePerRequestFilter` — guaranteed to run exactly once per HTTP request, even if the request is internally dispatched multiple times.
+
+Flow on every request:
+1. Extract token from `Authorization: Bearer <token>` header
+2. If present and valid → extract `userId` and `role` from token claims
+3. Build a `UsernamePasswordAuthenticationToken` with `principal=userId` (as String)
+4. Set it in `SecurityContextHolder` — Spring Security now "knows" who this is
+5. Always call `chain.doFilter(...)` — if no token, SecurityContext stays empty and path rules handle it
+
+**`principal = userId.toString()`** — services call `SecurityContextHolder.getContext().getAuthentication().getPrincipal()` to get the userId. Simple and avoids holding a stale entity in memory.
+
+**`credentials = null`** — The raw password is never needed after authentication. The token itself is the credential proof.
+
+---
+
+### 7.5 — `SecurityConfig.java`
+
+**File**: [`config/SecurityConfig.java`](../../backend/src/main/java/com/miniproject/plato/config/SecurityConfig.java)
+
+> Lives in `config/`, not `security/`. It's application-level configuration (like `AppConfig`), not a JWT utility.
+
+The master control panel. Defines:
+
+| Rule | Reason |
+|------|--------|
+| CSRF disabled | Not needed for stateless REST + JWT headers (CSRF attacks target cookie sessions) |
+| Sessions `STATELESS` | Spring never creates an `HttpSession`. Every request carries its own token. |
+| `/api/v1/auth/**` → `permitAll` | Login endpoint — must be public |
+| `/api/v1/qr/**` → `permitAll` | Customer QR scan — customers never log in |
+| `/api/v1/customer/**` → `permitAll` | Handled by `CustomerSessionFilter` (Day 11), not JWT |
+| Swagger paths → `permitAll` | Dev tooling |
+| `anyRequest().authenticated()` | All other endpoints require a valid JWT |
+| `@EnableMethodSecurity` | Activates `@PreAuthorize` on controller methods; silently ignored without this |
+| `JwtAuthenticationFilter` BEFORE `UsernamePasswordAuthenticationFilter` | JWT filter must populate SecurityContext before Spring evaluates path rules |
+| `AuthenticationManager` exposed as `@Bean` | `AuthServiceImpl` (Day 3 Task 3) injects it to verify passwords on login. Not exposed by default in Spring Boot 3. |
+| `DaoAuthenticationProvider` | Wires `UserDetailsServiceImpl` + `BCryptPasswordEncoder` into Spring's auth system |
+
+---
+
+### Files Created
+
+| File | Package | Purpose |
+|------|---------|---------|
+| `SecurityProperties.java` | `security/` | Binds `plato.jwt.*` config; validated on startup |
+| `JwtTokenProvider.java` | `security/` | JWT generate / validate / parse engine |
+| `UserDetailsServiceImpl.java` | `security/` | Loads user from DB for Spring Security |
+| `JwtAuthenticationFilter.java` | `security/` | Runs on every request; sets SecurityContext |
+| `SecurityConfig.java` | `config/` | Filter chain, path rules, session policy, CSRF |
+
+---
+
+### What This Enables
+
+- Every request to `/api/v1/**` (except auth/qr/customer/swagger) now requires a valid JWT → returns 401 otherwise
+- `@PreAuthorize("hasRole('SUPER_ADMIN')")` and similar annotations are now active on all controllers
+- `AuthServiceImpl` (next: Day 3 Task 3) can inject `AuthenticationManager` to verify login credentials
+- `SecurityContextHolder.getContext().getAuthentication().getPrincipal()` returns the userId string in any service method
+
+---
+
+### Fix — `getRoleFromToken` missing from `JwtTokenProvider`
+
+**Discovered**: During coding of `JwtAuthenticationFilter`
+**File fixed**: [`security/JwtTokenProvider.java`](../../backend/src/main/java/com/miniproject/plato/security/JwtTokenProvider.java)
+
+`JwtAuthenticationFilter` calls `jwtTokenProvider.getRoleFromToken(token)` on line 56, but the method was not initially written in `JwtTokenProvider`. The filter would have failed to compile.
+
+**Method added**:
+```java
+public String getRoleFromToken(String token) {
+    return parseClaims(token).get("role", String.class);
+}
+```
+
+**Why it works**: When generating the token, `.claim("role", role)` stores the role string under the key `"role"` in the JWT payload. `.get("role", String.class)` reads it back by the same key. The jjwt library handles type casting — returns `null` if the claim is absent rather than throwing.
 
 ---
