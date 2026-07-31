@@ -557,3 +557,159 @@ JwtAuthenticationFilter (reading from token):
 
 The `ROLE_` prefix is **added in two places**: `UserDetailsServiceImpl` (for login-time auth) and `JwtAuthenticationFilter` (for token-based auth). The JWT itself stores just `"OWNER"` — the prefix is always added at the Java layer.
 
+---
+
+## 11. Detailed Token Generation Flow (Line-by-Line Code Reference)
+
+This section traces exactly how a JWT token is generated after a successful login verification, referencing exact files, methods, and line numbers in the codebase.
+
+### 11.1 Classes Involved
+- `SecurityProperties.java`: `backend/src/main/java/com/miniproject/plato/security/SecurityProperties.java`
+- `JwtTokenProvider.java`: `backend/src/main/java/com/miniproject/plato/security/JwtTokenProvider.java`
+- `UserDetailsServiceImpl.java`: `backend/src/main/java/com/miniproject/plato/security/UserDetailsServiceImpl.java`
+- `SecurityConfig.java`: `backend/src/main/java/com/miniproject/plato/config/SecurityConfig.java`
+
+### 11.2 Step 1: Authentication Verification
+1. `AuthenticationManager` is exposed as a Spring Bean in `SecurityConfig.java` (Lines 125–129):
+   ```java
+   @Bean
+   public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+       return config.getAuthenticationManager();
+   }
+   ```
+2. During login, `AuthenticationManager` calls `loadUserByUsername` in `UserDetailsServiceImpl.java` (Lines 42–64):
+   - **Line 43**: `userRepository.findByEmail(email)` queries PostgreSQL.
+   - **Line 52–53**: `new SimpleGrantedAuthority("ROLE_" + user.getRole().name())` maps the role.
+   - **Lines 58–63**: Returns Spring Security's `UserDetails` object containing the stored BCrypt hash.
+   - Spring Security's `BCryptPasswordEncoder` verifies the raw password against the hash.
+
+### 11.3 Step 2: Generating the Cryptographic Key
+Inside `JwtTokenProvider.java` (Lines 18–24):
+```java
+private SecretKey getSigningKey() {
+    byte[] keyBytes = securityProperties.getSecret().getBytes();
+    return Keys.hmacShaKeyFor(keyBytes);
+}
+```
+- **Line 22**: `securityProperties.getSecret()` reads the `secret` field from `SecurityProperties.java` (Line 18), populated from `application.yml` (`JWT_SECRET`).
+- **Line 22**: `.getBytes()` converts the UTF-8 string to a raw byte array.
+- **Line 23**: `Keys.hmacShaKeyFor(keyBytes)` returns a `javax.crypto.SecretKey` configured for HMAC-SHA256.
+
+### 11.4 Step 3: Assembling and Signing the JWT
+Inside `JwtTokenProvider.java` (Lines 25–30):
+```java
+public String generateToken(UUID userId, String role){
+    Date now    = new Date();
+    Date expiry = new Date(now.getTime() + securityProperties.getExpiration());
+
+    return Jwts.builder()
+            .subject(userId.toString())
+            .claim("role", role)
+            .issuedAt(now)
+            .expiration(expiry)
+            .signWith(getSigningKey())
+            .compact();
+}
+```
+- **Line 26**: `Date now = new Date()` captures creation timestamp (`iat`).
+- **Line 27**: `Date expiry = new Date(now.getTime() + securityProperties.getExpiration())` adds `86400000L` (24h from `SecurityProperties.java:19`).
+- **Line 29 (`.subject(...)`)**: Sets standard JWT claim `sub` to the user's UUID string.
+- **Line 29 (`.claim("role", role)`)**: Embeds custom claim `"role"` (e.g. `"OWNER"`).
+- **Line 29 (`.issuedAt(now)`)**: Sets `iat` claim.
+- **Line 29 (`.expiration(expiry)`)**: Sets `exp` claim.
+- **Line 29 (`.signWith(getSigningKey())`)**: Signs the header + payload using HMAC-SHA256.
+- **Line 29 (`.compact()`)**: Serializes into Base64-URL string format: `header.payload.signature`.
+
+---
+
+## 12. Detailed Client Request JWT Authentication Flow (Line-by-Line Code Reference)
+
+This section details how every subsequent HTTP request from a client is intercepted, verified, and authenticated without touching the database.
+
+### 12.1 Classes Involved
+- `JwtAuthenticationFilter.java`: `backend/src/main/java/com/miniproject/plato/security/JwtAuthenticationFilter.java`
+- `JwtTokenProvider.java`: `backend/src/main/java/com/miniproject/plato/security/JwtTokenProvider.java`
+- `SecurityConfig.java`: `backend/src/main/java/com/miniproject/plato/config/SecurityConfig.java`
+
+### 12.2 Step 1: Interception & Header Extraction
+1. Intercepted by `JwtAuthenticationFilter.java` (Lines 37–44):
+   ```java
+   @Override
+   protected void doFilterInternal(...) {
+       String token = extractTokenFromRequest(request);
+   ```
+2. Token extraction method in `JwtAuthenticationFilter.java` (Lines 120–129):
+   ```java
+   private String extractTokenFromRequest(HttpServletRequest request) {
+       String bearerToken = request.getHeader("Authorization");
+       if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+           return bearerToken.substring(7);
+       }
+       return null;
+   }
+   ```
+   - **Line 121**: Retrieves `"Authorization"` header value (e.g. `"Bearer eyJhbGci..."`).
+   - **Line 126**: `bearerToken.substring(7)` strips off `"Bearer "` (7 characters) to return only the raw JWT string.
+
+### 12.3 Step 2: Token Validation & Parsing
+1. Validation call in `JwtAuthenticationFilter.java` (Line 47):
+   `if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token))`
+2. Method `validateToken` in `JwtTokenProvider.java` (Lines 48–64):
+   ```java
+   public boolean validateToken(String token) {
+       try {
+           parseClaims(token);
+           return true;
+       } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | SecurityException | IllegalArgumentException e) {
+           log.warn(...);
+       }
+       return false;
+   }
+   ```
+3. Method `parseClaims` in `JwtTokenProvider.java` (Lines 31–37):
+   ```java
+   private Claims parseClaims(String token) {
+       return Jwts.parser()
+               .verifyWith(getSigningKey())
+               .build()
+               .parseSignedClaims(token)
+               .getPayload();
+   }
+   ```
+   - **Line 33**: Verifies HMAC-SHA256 signature using `getSigningKey()`.
+   - **Line 35**: Parses claims and verifies expiration time (`exp`).
+   - **Line 36**: Returns `Claims` payload map.
+
+### 12.4 Step 3: Extracting Claims (Zero DB Hits)
+In `JwtAuthenticationFilter.java`:
+- **Line 50**: `UUID userId = jwtTokenProvider.getUserIdFromToken(token);`
+  - Calls `JwtTokenProvider.java` (Lines 38–40):
+    `UUID.fromString(parseClaims(token).getSubject());`
+- **Line 62**: `String role = jwtTokenProvider.getRoleFromToken(token);`
+  - Calls `JwtTokenProvider.java` (Lines 44–46):
+    `parseClaims(token).get("role", String.class);`
+
+### 12.5 Step 4: SecurityContext Registration
+In `JwtAuthenticationFilter.java` (Lines 80–105):
+```java
+SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role); // Line 80
+
+UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+        userId.toString(),           // principal (Line 93)
+        null,                        // credentials (Line 95)
+        java.util.List.of(authority)  // authorities (Line 96)
+);
+
+authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request)); // Line 99-101
+
+SecurityContextHolder.getContext().setAuthentication(authentication); // Line 105
+```
+- **Lines 80–81**: Prepend `"ROLE_"` to create `ROLE_OWNER` authority required by `@PreAuthorize`.
+- **Line 93**: Set principal to `userId.toString()`.
+- **Line 105**: Store `authentication` object into Spring Security's `SecurityContext`.
+
+### 12.6 Step 5: Filter Chain Continuation
+In `JwtAuthenticationFilter.java` (Line 113):
+`filterChain.doFilter(request, response);`
+- Request continues to `SecurityConfig.java` authorization rules and `@PreAuthorize` method level security.
+
