@@ -3,6 +3,8 @@ package com.miniproject.plato.user;
 import com.miniproject.plato.common.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -29,10 +31,12 @@ public class User extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "user_role")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private UserRole role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "user_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
 

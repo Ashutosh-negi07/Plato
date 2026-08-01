@@ -16,18 +16,20 @@
 | 5 | [User Module — Day 2](#5-user-module--day-2) | Week 1 · Day 2 | ✅ Done |
 | 6 | [Super Admin Seed — Day 2 Task 3](#6-super-admin-seed--day-2-task-3) | Week 1 · Day 2 | ✅ Done |
 | 7 | [Spring Security & JWT — Day 3 Task 1](#7-spring-security--jwt--day-3-task-1) | Week 1 · Day 3 | ✅ Done |
-| 8 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
-| 9 | Employees | Week 2 · Day 8 | 🔲 Pending |
-| 10 | Menu | Week 2 · Day 9 | 🔲 Pending |
-| 11 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
-| 12 | Cart | Week 3 · Day 12 | 🔲 Pending |
-| 13 | Orders | Week 3 · Day 13 | 🔲 Pending |
-| 14 | Payments | Week 3 · Day 14 | 🔲 Pending |
-| 15 | Feedback | Week 3 · Day 15 | 🔲 Pending |
-| 16 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
-| 17 | Analytics | Week 4 · Day 17 | 🔲 Pending |
-| 18 | Testing | Week 4 · Day 18 | 🔲 Pending |
-| 19 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
+| 8 | [Auth Module — Day 3 Task 3](#8-auth-module--day-3-task-3) | Week 1 · Day 3 | ✅ Done |
+| 9 | [Day 4 — Exception Handler & Hibernate Enum Fix](#9-day-4--exception-handler-completion--hibernate-enum-fix) | Week 1 · Day 4 | ✅ Done |
+| 10 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
+| 11 | Employees | Week 2 · Day 8 | 🔲 Pending |
+| 12 | Menu | Week 2 · Day 9 | 🔲 Pending |
+| 13 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
+| 14 | Cart | Week 3 · Day 12 | 🔲 Pending |
+| 15 | Orders | Week 3 · Day 13 | 🔲 Pending |
+| 16 | Payments | Week 3 · Day 14 | 🔲 Pending |
+| 17 | Feedback | Week 3 · Day 15 | 🔲 Pending |
+| 18 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
+| 19 | Analytics | Week 4 · Day 17 | 🔲 Pending |
+| 20 | Testing | Week 4 · Day 18 | 🔲 Pending |
+| 21 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
 
 ---
 
@@ -1298,5 +1300,302 @@ public String getRoleFromToken(String token) {
 ```
 
 **Why it works**: When generating the token, `.claim("role", role)` stores the role string under the key `"role"` in the JWT payload. `.get("role", String.class)` reads it back by the same key. The jjwt library handles type casting — returns `null` if the claim is absent rather than throwing.
+
+---
+
+---
+
+## 8. Auth Module — Day 3 Task 3
+
+**Phase**: Week 1 · Day 3  
+**Date**: 2026-08-01  
+**Plan tasks**: Day 3 · Task 3 (auth module)
+
+---
+
+### What Was Done
+
+Five files were created to expose the `POST /api/v1/auth/login` endpoint. This is the only entry point for platform staff (Super Admin, Owner, Employee) to obtain a JWT token.
+
+---
+
+### Package Structure
+
+```
+com.miniproject.plato.auth/
+├── dto/
+│   ├── LoginRequest.java      ← validated DTO for request body
+│   └── LoginResponse.java     ← DTO for response body
+├── AuthService.java           ← interface (contract)
+├── AuthServiceImpl.java       ← business logic
+└── AuthController.java        ← REST endpoint
+```
+
+---
+
+### 8.1 — `auth/dto/LoginRequest.java`
+
+```java
+public record LoginRequest(
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email must be valid")
+    String email,
+
+    @NotBlank(message = "Password is required")
+    String password
+) {}
+```
+
+**Why a `record`?** DTOs only carry data — no logic. Records are immutable by design: no setters, auto-generated `equals`, `hashCode`, `toString`. Perfect fit for request/response objects.
+
+**Why `@Email` on a login request?** Prevents trivially malformed input (e.g., `"notanemail"`) from ever reaching the service layer. Fast-fail validation at the controller edge.
+
+---
+
+### 8.2 — `auth/dto/LoginResponse.java`
+
+```java
+public record LoginResponse(
+    String accessToken,
+    String tokenType,
+    String role,
+    String fullName
+) {}
+```
+
+**Why return `role` and `fullName`?** The frontend needs them immediately after login to render the correct UI (e.g., Owner dashboard vs Employee view) without making a second API call. `tokenType = "Bearer"` is a convention — clients prepend it in the `Authorization` header.
+
+---
+
+### 8.3 — `auth/AuthService.java` — Interface
+
+```java
+public interface AuthService {
+    LoginResponse login(LoginRequest request);
+}
+```
+
+`AuthController` depends on this interface, never on `AuthServiceImpl` directly. This decouples the controller from the implementation — swapping or mocking the service in tests requires changing zero controller code.
+
+---
+
+### 8.4 — `auth/AuthServiceImpl.java` — Business Logic
+
+Three responsibilities in order:
+
+**Step 1 — Credential verification** (delegates to Spring Security)
+```java
+authenticationManager.authenticate(
+    new UsernamePasswordAuthenticationToken(request.email(), request.password())
+);
+```
+`AuthenticationManager` internally calls `UserDetailsServiceImpl.loadUserByUsername(email)` → fetches user from DB → `BCrypt.matches(rawPassword, storedHash)`. If this throws `AuthenticationException`, `GlobalExceptionHandler` converts it to a 401 automatically. No try-catch needed in the controller.
+
+**Step 2 — Last login update**
+```java
+user.setLastLogin(LocalDateTime.now());
+userRepository.save(user);
+```
+Records the exact timestamp of every successful login. Used for audit trail and inactive account detection.
+
+**Step 3 — JWT generation**
+```java
+String token = jwtTokenProvider.generateToken(user.getId(), user.getRole().name());
+```
+Returns a 24-hour signed JWT. The token payload contains `sub=userId` and `role=OWNER` (or `SUPER_ADMIN`, `EMPLOYEE`). No session is created server-side.
+
+---
+
+### 8.5 — `auth/AuthController.java` — REST Endpoint
+
+```java
+@PostMapping("/login")
+public ResponseEntity<ApiResponse<LoginResponse>> login(
+        @Valid @RequestBody LoginRequest request) {
+    LoginResponse response = authService.login(request);
+    return ResponseEntity.ok(ApiResponse.ok("Login successful", response));
+}
+```
+
+**`@Valid`** — triggers Bean Validation on `LoginRequest`. If `email` is blank or malformed, `GlobalExceptionHandler.handleValidationException` returns 400 with field-level errors before `login()` is ever called.
+
+**`@RequestMapping("/api/v1/auth")`** — this path is `permitAll` in `SecurityConfig`. The `JwtAuthenticationFilter` still runs but finds no token and simply passes the request through. Spring Security's path rules then permit it without authentication.
+
+---
+
+### Login Flow — Full Sequence
+
+```
+POST /api/v1/auth/login { email, password }
+        │
+        ▼
+[AuthController]          — @Valid validates DTO fields
+        │
+        ▼
+[AuthServiceImpl]         — authenticationManager.authenticate(email, password)
+        │
+        ▼
+[DaoAuthenticationProvider]
+        │
+        ▼
+[UserDetailsServiceImpl]  — SQL: SELECT * FROM users WHERE email = ?
+        │                   Maps UserRole → "ROLE_OWNER" authority
+        │                   Returns UserDetails (email, hash, authorities, status flags)
+        │
+        ▼
+[BCryptPasswordEncoder]   — matches(rawPassword, storedHash) → true or throws
+        │
+        ▼ (back in AuthServiceImpl)
+[UserRepository]          — SQL: SELECT * FROM users WHERE email = ?  (2nd query, for entity)
+[JwtTokenProvider]        — signs JWT: sub=UUID, role=OWNER, exp=+24h
+[UserRepository.save()]   — SQL: UPDATE users SET last_login = now() WHERE id = ?
+        │
+        ▼
+[AuthController]          — wraps LoginResponse in ApiResponse.ok(...)
+        │
+        ▼
+HTTP 200 { success: true, message: "Login successful",
+           data: { accessToken, tokenType: "Bearer", role, fullName } }
+```
+
+---
+
+### Files Created
+
+| File | Type | Purpose |
+|------|------|---------|
+| `auth/dto/LoginRequest.java` | Record DTO | Validated request body |
+| `auth/dto/LoginResponse.java` | Record DTO | Response body — token + metadata |
+| `auth/AuthService.java` | Interface | Contract; what controller depends on |
+| `auth/AuthServiceImpl.java` | Service impl | Full login logic — verify, update, generate token |
+| `auth/AuthController.java` | REST controller | `POST /api/v1/auth/login` |
+
+---
+
+### What This Enables
+
+- `POST /api/v1/auth/login` is live and returns a signed 24h JWT
+- The JWT can now be used on all protected endpoints via `Authorization: Bearer <token>`
+- `last_login` is updated in `users` table on every successful login
+- All validation errors (blank email, missing password) return structured 400 responses automatically
+
+---
+
+---
+
+## 9. Day 4 — Exception Handler Completion & Hibernate Enum Fix
+
+**Phase**: Week 1 · Day 4  
+**Date**: 2026-08-02  
+**Plan tasks**: Day 4 · Tasks 1 (complete GlobalExceptionHandler) + Bug Fix (Hibernate PostgreSQL enum type casting)
+
+---
+
+### What Was Done
+
+Two things: added the missing `DataIntegrityViolationException` handler to `GlobalExceptionHandler`, and fixed a Hibernate/PostgreSQL type incompatibility that prevented the app from starting.
+
+---
+
+### 9.1 — `DataIntegrityViolationException` Handler Added
+
+**File**: [`exception/GlobalExceptionHandler.java`](../../backend/src/main/java/com/miniproject/plato/exception/GlobalExceptionHandler.java)
+
+```java
+@ExceptionHandler(DataIntegrityViolationException.class)
+public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
+        DataIntegrityViolationException ex, HttpServletRequest request) {
+    log.warn("DataIntegrityViolation at {}: {}", request.getRequestURI(),
+            ex.getMostSpecificCause().getMessage());
+    return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(ApiResponse.error("The request conflicts with existing data."));
+}
+```
+
+**Why this is needed — two separate paths to a conflict:**
+
+| Path | What throws | Caught by |
+|------|------------|----------|
+| Normal: service checks `existsByEmail()` first | `ConflictException` (our own) | `PlatoException` handler → 409 |
+| Race condition: two requests arrive simultaneously, both pass the check, one inserts first | PostgreSQL UNIQUE constraint violation → `DataIntegrityViolationException` | This new handler → 409 |
+
+Without this handler, the race condition path returns 500. With it, both paths return a clean 409.
+
+**`getMostSpecificCause()`** — `DataIntegrityViolationException` is a Spring wrapper. The real cause is a `PSQLException` from the JDBC driver, which contains the constraint name. This method unwraps to the innermost cause for meaningful log output.
+
+**Handler order** — placed as #2 in the handler class (after `PlatoException`, before `MethodArgumentNotValidException`). Spring resolves handlers most-specific first, so ordering within the class affects which handler wins when multiple could match.
+
+---
+
+### 9.2 — Bug Fix: Hibernate PostgreSQL Custom Enum Type Casting
+
+**File fixed**: [`user/User.java`](../../backend/src/main/java/com/miniproject/plato/user/User.java)  
+**Discovered**: First startup attempt — `DataInitializer.existsByRole()` threw a `SQLGrammarException`
+
+**Root cause:**
+
+```
+ERROR: operator does not exist: user_role = character varying
+Hint: You might need to add explicit type casts.
+```
+
+Hibernate's `@Enumerated(EnumType.STRING)` always binds enum values as JDBC `character varying` (VARCHAR). PostgreSQL's `role` column is typed as `user_role` (a custom enum). PostgreSQL **strictly refuses** to compare `user_role = character varying` without an explicit cast. MySQL and H2 would silently accept it.
+
+`@Column(columnDefinition = "user_role")` only tells Hibernate what type to use in DDL (`CREATE TABLE`) — it does **not** change how Hibernate binds JDBC parameters in `WHERE` clauses.
+
+**Fix — `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` on both enum fields:**
+
+```java
+// Before:
+@Enumerated(EnumType.STRING)
+@Column(nullable = false, columnDefinition = "user_role")
+private UserRole role;
+
+// After:
+@Enumerated(EnumType.STRING)
+@Column(nullable = false, columnDefinition = "user_role")
+@JdbcTypeCode(SqlTypes.NAMED_ENUM)     // ← Hibernate 6 fix
+private UserRole role;
+```
+
+Same fix applied to `status` (maps to `user_status` PostgreSQL enum).
+
+**Why `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` works:**  
+This is a Hibernate 6 annotation that tells Hibernate to register this field's JDBC type as a **named PostgreSQL enum** rather than VARCHAR. At the JDBC wire level, the value is now sent with the correct type information, so PostgreSQL's type system accepts it without an explicit `CAST()` in the SQL.
+
+This fix is global — every query involving `role` or `status` columns (including `findByEmail`, `existsByRole`, future `@PreAuthorize` checks) now works correctly without any additional native queries or manual casting.
+
+---
+
+### 9.3 — First Successful Startup Log
+
+```
+✅ Profile:   local — active
+✅ DB:        Connected to PostgreSQL 16.11 at localhost:5432/plato
+✅ Flyway:    Schema at V2 — up to date, no migrations needed
+✅ Hibernate: JPA EntityManagerFactory initialized (3.2 seconds)
+✅ Security:  JwtAuthenticationFilter configured
+✅ Tomcat:    Started on port 8080
+✅ Seed:      Super Admin seeded → admin@plato.com
+```
+
+---
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `exception/GlobalExceptionHandler.java` | Added `DataIntegrityViolationException` handler (#2) + import |
+| `user/User.java` | Added `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` to `role` and `status` fields |
+
+---
+
+### What This Enables
+
+- Duplicate email race conditions now return 409 instead of 500
+- All PostgreSQL custom enum columns (`user_role`, `user_status`) bind correctly via JDBC
+- App starts and runs fully end-to-end — login endpoint is live and tested
+- Foundation is complete: exceptions, security, auth, DB — ready for Day 5 (User Management)
 
 ---
