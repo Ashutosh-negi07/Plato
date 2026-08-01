@@ -16,9 +16,11 @@ import java.util.List;
 
 /**
  * Implements Spring Security's UserDetailsService.
- * Spring calls loadUserByUsername() to look up a user when validating credentials.
+ * Spring calls loadUserByUsername() to look up a user when validating
+ * credentials.
  *
- * <p>"Username" in Spring Security terminology = email in Plato.
+ * <p>
+ * "Username" in Spring Security terminology = email in Plato.
  */
 @Service
 @RequiredArgsConstructor
@@ -30,12 +32,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     /**
      * Loads a user by email address.
      *
-     * <p>Spring Security calls this during JWT filter processing to build
+     * <p>
+     * Spring Security calls this during JWT filter processing to build
      * the Authentication object placed in the SecurityContext.
      *
-     * @param email the email address (Spring Security calls the param "username")
-     * @return a UserDetails object Spring Security understands
-     * @throws UsernameNotFoundException if no user with that email exists
+     * param email the email address (Spring Security calls the param "username")
+     * return a UserDetails object Spring Security understands
+     * throws UsernameNotFoundException if no user with that email exists
      */
     @Override
     @Transactional(readOnly = true)
@@ -49,8 +52,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // Map our UserRole enum to a Spring Security GrantedAuthority.
         // Spring Security expects the format "ROLE_<NAME>" for hasRole() checks.
         // e.g. UserRole.OWNER → "ROLE_OWNER"
-        SimpleGrantedAuthority authority =
-                new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
+        SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
 
         // Build a Spring Security User object (different from our entity User).
         // We pass the account state flags so Spring can enforce them automatically.
@@ -63,4 +65,3 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .build();
     }
 }
-
