@@ -15,18 +15,23 @@
 | 4 | [Flyway & Migrations V1–V2](#4-flyway--migrations-v1v2) | Week 1 · Day 1 | ✅ Done |
 | 5 | [User Module — Day 2](#5-user-module--day-2) | Week 1 · Day 2 | ✅ Done |
 | 6 | [Super Admin Seed — Day 2 Task 3](#6-super-admin-seed--day-2-task-3) | Week 1 · Day 2 | ✅ Done |
-| 7 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
-| 8 | Employees | Week 2 · Day 8 | 🔲 Pending |
-| 9 | Menu | Week 2 · Day 9 | 🔲 Pending |
-| 10 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
-| 11 | Cart | Week 3 · Day 12 | 🔲 Pending |
-| 12 | Orders | Week 3 · Day 13 | 🔲 Pending |
-| 13 | Payments | Week 3 · Day 14 | 🔲 Pending |
-| 14 | Feedback | Week 3 · Day 15 | 🔲 Pending |
-| 15 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
-| 16 | Analytics | Week 4 · Day 17 | 🔲 Pending |
-| 17 | Testing | Week 4 · Day 18 | 🔲 Pending |
-| 18 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
+| 7 | [Spring Security & JWT — Day 3 Task 1](#7-spring-security--jwt--day-3-task-1) | Week 1 · Day 3 | ✅ Done |
+| 8 | [Auth Module — Day 3 Task 3](#8-auth-module--day-3-task-3) | Week 1 · Day 3 | ✅ Done |
+| 9 | [Day 4 — Exception Handler & Hibernate Enum Fix](#9-day-4--exception-handler-completion--hibernate-enum-fix) | Week 1 · Day 4 | ✅ Done |
+| 10 | [Redis Infrastructure Setup — Day 6](#10-redis-infrastructure-setup--day-6) | Week 2 · Day 6 | 🔲 In Progress |
+| 11 | [Restaurant Module — Day 6](#11-restaurant-module--day-6) | Week 2 · Day 6 | 🔲 In Progress |
+| 12 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
+| 13 | Employees | Week 2 · Day 8 | 🔲 Pending |
+| 14 | Menu | Week 2 · Day 9 | 🔲 Pending |
+| 15 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
+| 16 | Cart | Week 3 · Day 12 | 🔲 Pending |
+| 17 | Orders | Week 3 · Day 13 | 🔲 Pending |
+| 18 | Payments | Week 3 · Day 14 | 🔲 Pending |
+| 19 | Feedback | Week 3 · Day 15 | 🔲 Pending |
+| 20 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
+| 21 | Analytics | Week 4 · Day 17 | 🔲 Pending |
+| 22 | Testing | Week 4 · Day 18 | 🔲 Pending |
+| 23 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
 
 ---
 
@@ -1105,5 +1110,695 @@ INFO  DataInitializer : Super Admin already exists — skipping seed.
 - No manual SQL inserts needed to bootstrap the system
 - The first thing Day 3’s JWT login flow can be tested against is this admin account
 - `PasswordEncoder` bean is ready for Day 3’s `AuthServiceImpl` to use for login verification
+
+---
+
+---
+
+## 7. Spring Security & JWT — Day 3 Task 1
+
+**Phase**: Week 1 · Day 3
+**Date**: 2026-07-30
+**Plan tasks**: Day 3 · Task 1 (security package)
+
+---
+
+### What Was Done
+
+Five files were created to add stateless JWT authentication to the application. Before this task, Spring Security's auto-configuration was blocking every endpoint by default. After this task, the app has a precise, configurable security setup.
+
+---
+
+### The Big Picture — How JWT Auth Works in Plato
+
+```
+Client sends:  POST /api/v1/auth/login  { email, password }
+                         │
+                ┌────────▼────────┐
+                │  AuthController  │  (Day 3 Task 3 — auth module)
+                └────────┬────────┘
+                         │ calls AuthService → validates password → calls JwtTokenProvider
+                ┌────────▼──────────────┐
+                │  JwtTokenProvider     │  generates a signed JWT (sub=userId, role=OWNER etc.)
+                └────────┬──────────────┘
+                         │ returns token to client
+
+Client sends:  GET /api/v1/restaurants  { Authorization: Bearer <token> }
+                         │
+                ┌────────▼──────────────────┐
+                │  JwtAuthenticationFilter  │  reads & validates token on EVERY request
+                └────────┬──────────────────┘
+                         │ sets SecurityContext (Spring Security knows who this is)
+                ┌────────▼──────────────────┐
+                │  SecurityConfig rules     │  checks @PreAuthorize / path rules
+                └────────┬──────────────────┘
+                         │
+                ┌────────▼──────────────────┐
+                │  Controller executes      │
+                └───────────────────────────┘
+```
+
+---
+
+### File Creation Order (and Why)
+
+Each file depends on the previous, so they were created in this order:
+
+```
+1. SecurityProperties.java       ← reads JWT config from application.yml
+2. JwtTokenProvider.java         ← uses SecurityProperties to sign/verify tokens
+3. UserDetailsServiceImpl.java   ← loads a user from DB for Spring Security
+4. JwtAuthenticationFilter.java  ← uses JwtTokenProvider; sets SecurityContext
+5. SecurityConfig.java           ← wires everything together; defines path rules
+```
+
+---
+
+### 7.1 — `SecurityProperties.java`
+
+**File**: [`security/SecurityProperties.java`](../../backend/src/main/java/com/miniproject/plato/security/SecurityProperties.java)
+
+Binds `plato.jwt.*` from `application.yml` into a typed Java object. `@ConfigurationProperties(prefix = "plato.jwt")` tells Spring to map `plato.jwt.secret` → `secret` field and `plato.jwt.expiration` → `expiration` field. `@Validated` + `@NotBlank` means the app refuses to start if `JWT_SECRET` env var is missing.
+
+**Why not `@Value` scattered everywhere?** One class, one binding. Any class that needs JWT config injects `SecurityProperties` — never reads from `application.yml` directly.
+
+**Why not a Java `record`?** Spring's `@ConfigurationProperties` binding works by calling setters. Records are immutable — no setters. Regular class with Lombok `@Getter @Setter` is required.
+
+---
+
+### 7.2 — `JwtTokenProvider.java`
+
+**File**: [`security/JwtTokenProvider.java`](../../backend/src/main/java/com/miniproject/plato/security/JwtTokenProvider.java)
+
+The JWT engine. Three responsibilities:
+
+| Method | What it does |
+|--------|-------------|
+| `generateToken(userId, role)` | Builds and signs a JWT with `sub=userId`, `role=OWNER` etc., `exp=now+24h` |
+| `validateToken(token)` | Returns `true` if signature is valid and token is not expired; never throws |
+| `getUserIdFromToken(token)` | Extracts the subject (userId) from a valid token |
+| `getRoleFromToken(token)` | Extracts the `role` custom claim |
+
+**Algorithm**: HMAC-SHA256 (symmetric) — one secret to sign and verify. Appropriate for a single-service backend.
+
+**Why store `role` in the token?** The filter can check the user's role without hitting the database on every request. Fast.
+
+**Why `validateToken` returns `false` and never throws?** A token failure is not exceptional — it's expected for every unauthenticated request. Throwing would log a stack trace on every 401. Returning `false` is clean.
+
+---
+
+### 7.3 — `UserDetailsServiceImpl.java`
+
+**File**: [`security/UserDetailsServiceImpl.java`](../../backend/src/main/java/com/miniproject/plato/security/UserDetailsServiceImpl.java)
+
+Implements Spring Security's `UserDetailsService` interface. Spring calls `loadUserByUsername(email)` to load a user during:
+- Password verification on login (via `AuthenticationManager`)
+- JWT filter processing (to build the `Authentication` object)
+
+Maps `UserRole.OWNER` → `"ROLE_OWNER"` (the `ROLE_` prefix is required so `@PreAuthorize("hasRole('OWNER')")` works).
+
+Passes `disabled` and `accountLocked` flags from `UserStatus` so Spring Security enforces them automatically.
+
+**`@Transactional(readOnly = true)`** — signals to the DB that this transaction won't write, enabling performance optimisations.
+
+---
+
+### 7.4 — `JwtAuthenticationFilter.java`
+
+**File**: [`security/JwtAuthenticationFilter.java`](../../backend/src/main/java/com/miniproject/plato/security/JwtAuthenticationFilter.java)
+
+Extends `OncePerRequestFilter` — guaranteed to run exactly once per HTTP request, even if the request is internally dispatched multiple times.
+
+Flow on every request:
+1. Extract token from `Authorization: Bearer <token>` header
+2. If present and valid → extract `userId` and `role` from token claims
+3. Build a `UsernamePasswordAuthenticationToken` with `principal=userId` (as String)
+4. Set it in `SecurityContextHolder` — Spring Security now "knows" who this is
+5. Always call `chain.doFilter(...)` — if no token, SecurityContext stays empty and path rules handle it
+
+**`principal = userId.toString()`** — services call `SecurityContextHolder.getContext().getAuthentication().getPrincipal()` to get the userId. Simple and avoids holding a stale entity in memory.
+
+**`credentials = null`** — The raw password is never needed after authentication. The token itself is the credential proof.
+
+---
+
+### 7.5 — `SecurityConfig.java`
+
+**File**: [`config/SecurityConfig.java`](../../backend/src/main/java/com/miniproject/plato/config/SecurityConfig.java)
+
+> Lives in `config/`, not `security/`. It's application-level configuration (like `AppConfig`), not a JWT utility.
+
+The master control panel. Defines:
+
+| Rule | Reason |
+|------|--------|
+| CSRF disabled | Not needed for stateless REST + JWT headers (CSRF attacks target cookie sessions) |
+| Sessions `STATELESS` | Spring never creates an `HttpSession`. Every request carries its own token. |
+| `/api/v1/auth/**` → `permitAll` | Login endpoint — must be public |
+| `/api/v1/qr/**` → `permitAll` | Customer QR scan — customers never log in |
+| `/api/v1/customer/**` → `permitAll` | Handled by `CustomerSessionFilter` (Day 11), not JWT |
+| Swagger paths → `permitAll` | Dev tooling |
+| `anyRequest().authenticated()` | All other endpoints require a valid JWT |
+| `@EnableMethodSecurity` | Activates `@PreAuthorize` on controller methods; silently ignored without this |
+| `JwtAuthenticationFilter` BEFORE `UsernamePasswordAuthenticationFilter` | JWT filter must populate SecurityContext before Spring evaluates path rules |
+| `AuthenticationManager` exposed as `@Bean` | `AuthServiceImpl` (Day 3 Task 3) injects it to verify passwords on login. Not exposed by default in Spring Boot 3. |
+| `DaoAuthenticationProvider` | Wires `UserDetailsServiceImpl` + `BCryptPasswordEncoder` into Spring's auth system |
+
+---
+
+### Files Created
+
+| File | Package | Purpose |
+|------|---------|---------|
+| `SecurityProperties.java` | `security/` | Binds `plato.jwt.*` config; validated on startup |
+| `JwtTokenProvider.java` | `security/` | JWT generate / validate / parse engine |
+| `UserDetailsServiceImpl.java` | `security/` | Loads user from DB for Spring Security |
+| `JwtAuthenticationFilter.java` | `security/` | Runs on every request; sets SecurityContext |
+| `SecurityConfig.java` | `config/` | Filter chain, path rules, session policy, CSRF |
+
+---
+
+### What This Enables
+
+- Every request to `/api/v1/**` (except auth/qr/customer/swagger) now requires a valid JWT → returns 401 otherwise
+- `@PreAuthorize("hasRole('SUPER_ADMIN')")` and similar annotations are now active on all controllers
+- `AuthServiceImpl` (next: Day 3 Task 3) can inject `AuthenticationManager` to verify login credentials
+- `SecurityContextHolder.getContext().getAuthentication().getPrincipal()` returns the userId string in any service method
+
+---
+
+### Fix — `getRoleFromToken` missing from `JwtTokenProvider`
+
+**Discovered**: During coding of `JwtAuthenticationFilter`
+**File fixed**: [`security/JwtTokenProvider.java`](../../backend/src/main/java/com/miniproject/plato/security/JwtTokenProvider.java)
+
+`JwtAuthenticationFilter` calls `jwtTokenProvider.getRoleFromToken(token)` on line 56, but the method was not initially written in `JwtTokenProvider`. The filter would have failed to compile.
+
+**Method added**:
+```java
+public String getRoleFromToken(String token) {
+    return parseClaims(token).get("role", String.class);
+}
+```
+
+**Why it works**: When generating the token, `.claim("role", role)` stores the role string under the key `"role"` in the JWT payload. `.get("role", String.class)` reads it back by the same key. The jjwt library handles type casting — returns `null` if the claim is absent rather than throwing.
+
+---
+
+---
+
+## 8. Auth Module — Day 3 Task 3
+
+**Phase**: Week 1 · Day 3  
+**Date**: 2026-08-01  
+**Plan tasks**: Day 3 · Task 3 (auth module)
+
+---
+
+### What Was Done
+
+Five files were created to expose the `POST /api/v1/auth/login` endpoint. This is the only entry point for platform staff (Super Admin, Owner, Employee) to obtain a JWT token.
+
+---
+
+### Package Structure
+
+```
+com.miniproject.plato.auth/
+├── dto/
+│   ├── LoginRequest.java      ← validated DTO for request body
+│   └── LoginResponse.java     ← DTO for response body
+├── AuthService.java           ← interface (contract)
+├── AuthServiceImpl.java       ← business logic
+└── AuthController.java        ← REST endpoint
+```
+
+---
+
+### 8.1 — `auth/dto/LoginRequest.java`
+
+```java
+public record LoginRequest(
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email must be valid")
+    String email,
+
+    @NotBlank(message = "Password is required")
+    String password
+) {}
+```
+
+**Why a `record`?** DTOs only carry data — no logic. Records are immutable by design: no setters, auto-generated `equals`, `hashCode`, `toString`. Perfect fit for request/response objects.
+
+**Why `@Email` on a login request?** Prevents trivially malformed input (e.g., `"notanemail"`) from ever reaching the service layer. Fast-fail validation at the controller edge.
+
+---
+
+### 8.2 — `auth/dto/LoginResponse.java`
+
+```java
+public record LoginResponse(
+    String accessToken,
+    String tokenType,
+    String role,
+    String fullName
+) {}
+```
+
+**Why return `role` and `fullName`?** The frontend needs them immediately after login to render the correct UI (e.g., Owner dashboard vs Employee view) without making a second API call. `tokenType = "Bearer"` is a convention — clients prepend it in the `Authorization` header.
+
+---
+
+### 8.3 — `auth/AuthService.java` — Interface
+
+```java
+public interface AuthService {
+    LoginResponse login(LoginRequest request);
+}
+```
+
+`AuthController` depends on this interface, never on `AuthServiceImpl` directly. This decouples the controller from the implementation — swapping or mocking the service in tests requires changing zero controller code.
+
+---
+
+### 8.4 — `auth/AuthServiceImpl.java` — Business Logic
+
+Three responsibilities in order:
+
+**Step 1 — Credential verification** (delegates to Spring Security)
+```java
+authenticationManager.authenticate(
+    new UsernamePasswordAuthenticationToken(request.email(), request.password())
+);
+```
+`AuthenticationManager` internally calls `UserDetailsServiceImpl.loadUserByUsername(email)` → fetches user from DB → `BCrypt.matches(rawPassword, storedHash)`. If this throws `AuthenticationException`, `GlobalExceptionHandler` converts it to a 401 automatically. No try-catch needed in the controller.
+
+**Step 2 — Last login update**
+```java
+user.setLastLogin(LocalDateTime.now());
+userRepository.save(user);
+```
+Records the exact timestamp of every successful login. Used for audit trail and inactive account detection.
+
+**Step 3 — JWT generation**
+```java
+String token = jwtTokenProvider.generateToken(user.getId(), user.getRole().name());
+```
+Returns a 24-hour signed JWT. The token payload contains `sub=userId` and `role=OWNER` (or `SUPER_ADMIN`, `EMPLOYEE`). No session is created server-side.
+
+---
+
+### 8.5 — `auth/AuthController.java` — REST Endpoint
+
+```java
+@PostMapping("/login")
+public ResponseEntity<ApiResponse<LoginResponse>> login(
+        @Valid @RequestBody LoginRequest request) {
+    LoginResponse response = authService.login(request);
+    return ResponseEntity.ok(ApiResponse.ok("Login successful", response));
+}
+```
+
+**`@Valid`** — triggers Bean Validation on `LoginRequest`. If `email` is blank or malformed, `GlobalExceptionHandler.handleValidationException` returns 400 with field-level errors before `login()` is ever called.
+
+**`@RequestMapping("/api/v1/auth")`** — this path is `permitAll` in `SecurityConfig`. The `JwtAuthenticationFilter` still runs but finds no token and simply passes the request through. Spring Security's path rules then permit it without authentication.
+
+---
+
+### Login Flow — Full Sequence
+
+```
+POST /api/v1/auth/login { email, password }
+        │
+        ▼
+[AuthController]          — @Valid validates DTO fields
+        │
+        ▼
+[AuthServiceImpl]         — authenticationManager.authenticate(email, password)
+        │
+        ▼
+[DaoAuthenticationProvider]
+        │
+        ▼
+[UserDetailsServiceImpl]  — SQL: SELECT * FROM users WHERE email = ?
+        │                   Maps UserRole → "ROLE_OWNER" authority
+        │                   Returns UserDetails (email, hash, authorities, status flags)
+        │
+        ▼
+[BCryptPasswordEncoder]   — matches(rawPassword, storedHash) → true or throws
+        │
+        ▼ (back in AuthServiceImpl)
+[UserRepository]          — SQL: SELECT * FROM users WHERE email = ?  (2nd query, for entity)
+[JwtTokenProvider]        — signs JWT: sub=UUID, role=OWNER, exp=+24h
+[UserRepository.save()]   — SQL: UPDATE users SET last_login = now() WHERE id = ?
+        │
+        ▼
+[AuthController]          — wraps LoginResponse in ApiResponse.ok(...)
+        │
+        ▼
+HTTP 200 { success: true, message: "Login successful",
+           data: { accessToken, tokenType: "Bearer", role, fullName } }
+```
+
+---
+
+### Files Created
+
+| File | Type | Purpose |
+|------|------|---------|
+| `auth/dto/LoginRequest.java` | Record DTO | Validated request body |
+| `auth/dto/LoginResponse.java` | Record DTO | Response body — token + metadata |
+| `auth/AuthService.java` | Interface | Contract; what controller depends on |
+| `auth/AuthServiceImpl.java` | Service impl | Full login logic — verify, update, generate token |
+| `auth/AuthController.java` | REST controller | `POST /api/v1/auth/login` |
+
+---
+
+### What This Enables
+
+- `POST /api/v1/auth/login` is live and returns a signed 24h JWT
+- The JWT can now be used on all protected endpoints via `Authorization: Bearer <token>`
+- `last_login` is updated in `users` table on every successful login
+- All validation errors (blank email, missing password) return structured 400 responses automatically
+
+---
+
+---
+
+## 9. Day 4 — Exception Handler Completion & Hibernate Enum Fix
+
+**Phase**: Week 1 · Day 4  
+**Date**: 2026-08-02  
+**Plan tasks**: Day 4 · Tasks 1 (complete GlobalExceptionHandler) + Bug Fix (Hibernate PostgreSQL enum type casting)
+
+---
+
+### What Was Done
+
+Two things: added the missing `DataIntegrityViolationException` handler to `GlobalExceptionHandler`, and fixed a Hibernate/PostgreSQL type incompatibility that prevented the app from starting.
+
+---
+
+### 9.1 — `DataIntegrityViolationException` Handler Added
+
+**File**: [`exception/GlobalExceptionHandler.java`](../../backend/src/main/java/com/miniproject/plato/exception/GlobalExceptionHandler.java)
+
+```java
+@ExceptionHandler(DataIntegrityViolationException.class)
+public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
+        DataIntegrityViolationException ex, HttpServletRequest request) {
+    log.warn("DataIntegrityViolation at {}: {}", request.getRequestURI(),
+            ex.getMostSpecificCause().getMessage());
+    return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(ApiResponse.error("The request conflicts with existing data."));
+}
+```
+
+**Why this is needed — two separate paths to a conflict:**
+
+| Path | What throws | Caught by |
+|------|------------|----------|
+| Normal: service checks `existsByEmail()` first | `ConflictException` (our own) | `PlatoException` handler → 409 |
+| Race condition: two requests arrive simultaneously, both pass the check, one inserts first | PostgreSQL UNIQUE constraint violation → `DataIntegrityViolationException` | This new handler → 409 |
+
+Without this handler, the race condition path returns 500. With it, both paths return a clean 409.
+
+**`getMostSpecificCause()`** — `DataIntegrityViolationException` is a Spring wrapper. The real cause is a `PSQLException` from the JDBC driver, which contains the constraint name. This method unwraps to the innermost cause for meaningful log output.
+
+**Handler order** — placed as #2 in the handler class (after `PlatoException`, before `MethodArgumentNotValidException`). Spring resolves handlers most-specific first, so ordering within the class affects which handler wins when multiple could match.
+
+---
+
+### 9.2 — Bug Fix: Hibernate PostgreSQL Custom Enum Type Casting
+
+**File fixed**: [`user/User.java`](../../backend/src/main/java/com/miniproject/plato/user/User.java)  
+**Discovered**: First startup attempt — `DataInitializer.existsByRole()` threw a `SQLGrammarException`
+
+**Root cause:**
+
+```
+ERROR: operator does not exist: user_role = character varying
+Hint: You might need to add explicit type casts.
+```
+
+Hibernate's `@Enumerated(EnumType.STRING)` always binds enum values as JDBC `character varying` (VARCHAR). PostgreSQL's `role` column is typed as `user_role` (a custom enum). PostgreSQL **strictly refuses** to compare `user_role = character varying` without an explicit cast. MySQL and H2 would silently accept it.
+
+`@Column(columnDefinition = "user_role")` only tells Hibernate what type to use in DDL (`CREATE TABLE`) — it does **not** change how Hibernate binds JDBC parameters in `WHERE` clauses.
+
+**Fix — `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` on both enum fields:**
+
+```java
+// Before:
+@Enumerated(EnumType.STRING)
+@Column(nullable = false, columnDefinition = "user_role")
+private UserRole role;
+
+// After:
+@Enumerated(EnumType.STRING)
+@Column(nullable = false, columnDefinition = "user_role")
+@JdbcTypeCode(SqlTypes.NAMED_ENUM)     // ← Hibernate 6 fix
+private UserRole role;
+```
+
+Same fix applied to `status` (maps to `user_status` PostgreSQL enum).
+
+**Why `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` works:**  
+This is a Hibernate 6 annotation that tells Hibernate to register this field's JDBC type as a **named PostgreSQL enum** rather than VARCHAR. At the JDBC wire level, the value is now sent with the correct type information, so PostgreSQL's type system accepts it without an explicit `CAST()` in the SQL.
+
+This fix is global — every query involving `role` or `status` columns (including `findByEmail`, `existsByRole`, future `@PreAuthorize` checks) now works correctly without any additional native queries or manual casting.
+
+---
+
+### 9.3 — First Successful Startup Log
+
+```
+✅ Profile:   local — active
+✅ DB:        Connected to PostgreSQL 16.11 at localhost:5432/plato
+✅ Flyway:    Schema at V2 — up to date, no migrations needed
+✅ Hibernate: JPA EntityManagerFactory initialized (3.2 seconds)
+✅ Security:  JwtAuthenticationFilter configured
+✅ Tomcat:    Started on port 8080
+✅ Seed:      Super Admin seeded → admin@plato.com
+```
+
+---
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `exception/GlobalExceptionHandler.java` | Added `DataIntegrityViolationException` handler (#2) + import |
+| `user/User.java` | Added `@JdbcTypeCode(SqlTypes.NAMED_ENUM)` to `role` and `status` fields |
+
+---
+
+### What This Enables
+
+- Duplicate email race conditions now return 409 instead of 500
+- All PostgreSQL custom enum columns (`user_role`, `user_status`) bind correctly via JDBC
+- App starts and runs fully end-to-end — login endpoint is live and tested
+- Foundation is complete: exceptions, security, auth, DB — ready for Day 5 (User Management)
+
+---
+
+---
+
+## 10. Redis Infrastructure Setup — Day 6
+
+**Phase**: Week 2 · Day 6  
+**Date**: 2026-08-08  
+**Why added here**: Redis is required infrastructure for Day 11 customer sessions (primary session store) and Day 9 menu caching. Setting it up in Day 6 alongside the first cache-worthy module (restaurants) avoids retrofitting later.
+
+---
+
+### What Redis does in this project
+
+| Layer | What Redis stores | Why Redis and not PostgreSQL |
+|---|---|---|
+| Day 6 | Restaurant by ID | Frequently read, rarely changed. Saves a DB round-trip on every GET |
+| Day 9 | Full menu per restaurant | Highest read volume in the system — customers browse menu repeatedly |
+| Day 11 | Customer session token → session data | Sub-millisecond lookup + auto-expiry via Redis TTL. PostgreSQL would be 50× slower at scale |
+| Day 12 | Cart state per session | Cart changes constantly. Redis handles frequent writes; synced to DB on order placement |
+
+---
+
+### Architecture: How Spring Cache + Redis work together
+
+```
+Controller calls service method
+        │
+        ▼
+@Cacheable(“restaurants”, key="#id")          ← Spring intercepts
+        │
+        ├─ Cache HIT:  Return value directly from Redis   (no DB query)
+        └─ Cache MISS: Execute method body → query DB → store in Redis → return
+
+@CacheEvict(“restaurants”, key="#id")         ← On write/delete
+        │
+        └─ Delete the cached entry so next GET fetches fresh data
+```
+
+**Spring Cache abstraction** means the service code has no direct Redis calls. Annotations do all the work. If Redis goes down, the app falls back to PostgreSQL automatically (cache miss = DB hit).
+
+---
+
+### 10.1 — `pom.xml` — Two dependencies added
+
+```xml
+<!-- Redis client + Spring Data Redis -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+
+<!-- Spring Cache abstraction (@Cacheable, @CacheEvict, @CachePut) -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+```
+
+**Why two separate starters?**  
+`spring-boot-starter-data-redis` provides the Redis connection layer (Lettuce client by default). `spring-boot-starter-cache` provides the `@Cacheable` / `@CacheEvict` annotation engine. They work together but are independently usable — you could use Redis without the cache abstraction (e.g. for raw session storage on Day 11).
+
+---
+
+### 10.2 — `application.yml` — Redis + Cache config blocks added
+
+```yaml
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000      # default TTL: 10 min (ms)
+      cache-null-values: false  # never cache null
+```
+
+**Why `${REDIS_HOST:localhost}` with a default?** Unlike `JWT_SECRET` which must never have a fallback, Redis host is safe to default to localhost. If `REDIS_HOST` is not set in the environment, the app still works locally without any extra setup.
+
+**Why `cache-null-values: false`?** If a DB query returns null (entity not found), we don’t cache that null. Otherwise a future request for a newly created entity would incorrectly get a null from cache instead of hitting the DB.
+
+---
+
+### 10.3 — `application-local.yml` — Local Redis config
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:          # no password on local Homebrew Redis
+```
+
+---
+
+### 10.4 — `config/CacheConfig.java` — The Cache Manager
+
+```java
+@Configuration
+@EnableCaching
+public class CacheConfig {
+
+    @Bean
+    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        RedisCacheConfiguration defaultConfig = RedisCacheConfiguration
+                .defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(10))
+                .serializeKeysWith(pair(new StringRedisSerializer()))
+                .serializeValuesWith(pair(new GenericJackson2JsonRedisSerializer()))
+                .disableCachingNullValues();
+
+        return RedisCacheManager.builder(connectionFactory)
+                .cacheDefaults(defaultConfig)
+                .withCacheConfiguration("restaurants",
+                        defaultConfig.entryTtl(Duration.ofMinutes(10)))
+                .withCacheConfiguration("restaurantsByOwner",
+                        defaultConfig.entryTtl(Duration.ofMinutes(5)))
+                .withCacheConfiguration("menuItems",
+                        defaultConfig.entryTtl(Duration.ofMinutes(15)))
+                .withCacheConfiguration("customerSession",
+                        defaultConfig.entryTtl(Duration.ofMinutes(30)))
+                .build();
+    }
+}
+```
+
+**Why `GenericJackson2JsonRedisSerializer`?**  
+Stores cache values as human-readable JSON in Redis. You can inspect cached data with `redis-cli GET restaurants::some-uuid` and read it. The alternative (Java binary serialization) is opaque and breaks when class names change.
+
+**Why `StringRedisSerializer` for keys?**  
+Keys are stored as plain strings (`restaurants::550e8400-e29b...`). This is human-readable and efficient. Using Java serialization for keys produces unreadable binary strings.
+
+**Why `@EnableCaching` on this class and not `PlatoApplication`?**  
+Keeping infrastructure config in its own `@Configuration` class follows Single Responsibility. `PlatoApplication` already has `@EnableJpaAuditing` — adding more annotations there makes it a catch-all. `CacheConfig` is self-documenting: one file = one concern.
+
+---
+
+### 10.5 — Cache annotations on `RestaurantServiceImpl`
+
+```java
+// READ — cache the result after the first DB hit
+@Cacheable(value = "restaurants", key = "#id")
+public RestaurantResponse getById(UUID id, ...) { ... }
+
+// WRITE — evict stale cache after updating
+@CacheEvict(value = "restaurants", key = "#id")
+public RestaurantResponse update(UUID id, ...) { ... }
+
+@CacheEvict(value = "restaurants", key = "#id")
+public RestaurantResponse updateStatus(UUID id, ...) { ... }
+
+@CacheEvict(value = "restaurants", key = "#id")
+public RestaurantResponse updateSettings(UUID id, ...) { ... }
+```
+
+**Why NOT cache `getAll` (paginated list)?**  
+Paginated results contain many restaurants and change frequently (new restaurants added, status changes). Caching a page snapshot is risky — you’d serve stale lists. Single-entity caching (`getById`) is safe and high-value.
+
+---
+
+### 10.6 — Local Redis installation (one-time)
+
+```bash
+brew install redis            # install
+brew services start redis     # start as background service
+redis-cli ping                # should return: PONG
+```
+
+To start/stop alongside the project (without brew services):
+```bash
+redis-server &                # start
+redis-cli shutdown            # stop
+```
+
+---
+
+### Files Added / Modified
+
+| File | Change |
+|------|--------|
+| `pom.xml` | Added `spring-boot-starter-data-redis` + `spring-boot-starter-cache` |
+| `application.yml` | Added `spring.data.redis.*` + `spring.cache.*` blocks |
+| `application-local.yml` | Added local Redis connection defaults |
+| `config/CacheConfig.java` | **NEW** — `RedisCacheManager` bean with JSON serializer + per-cache TTLs |
+| `restaurant/RestaurantServiceImpl.java` | Added `@Cacheable` / `@CacheEvict` to read/write methods |
+
+---
+
+### What This Enables
+
+- Restaurant reads are cached for 10 minutes — repeated GETs hit Redis, not PostgreSQL
+- Cache automatically invalidated on any write (update/status/settings change)
+- Infrastructure ready for menu caching (Day 9) and customer session storage (Day 11)
+- `redis-cli` can be used to inspect live cache state during development
 
 ---

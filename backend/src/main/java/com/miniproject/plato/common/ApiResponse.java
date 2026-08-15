@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Universal response envelope for every API endpoint.
@@ -21,6 +22,7 @@ import lombok.NoArgsConstructor;
  * omitted from the JSON output — keeping error responses lean.
  */
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
