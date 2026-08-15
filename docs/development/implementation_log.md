@@ -18,18 +18,20 @@
 | 7 | [Spring Security & JWT — Day 3 Task 1](#7-spring-security--jwt--day-3-task-1) | Week 1 · Day 3 | ✅ Done |
 | 8 | [Auth Module — Day 3 Task 3](#8-auth-module--day-3-task-3) | Week 1 · Day 3 | ✅ Done |
 | 9 | [Day 4 — Exception Handler & Hibernate Enum Fix](#9-day-4--exception-handler-completion--hibernate-enum-fix) | Week 1 · Day 4 | ✅ Done |
-| 10 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
-| 11 | Employees | Week 2 · Day 8 | 🔲 Pending |
-| 12 | Menu | Week 2 · Day 9 | 🔲 Pending |
-| 13 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
-| 14 | Cart | Week 3 · Day 12 | 🔲 Pending |
-| 15 | Orders | Week 3 · Day 13 | 🔲 Pending |
-| 16 | Payments | Week 3 · Day 14 | 🔲 Pending |
-| 17 | Feedback | Week 3 · Day 15 | 🔲 Pending |
-| 18 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
-| 19 | Analytics | Week 4 · Day 17 | 🔲 Pending |
-| 20 | Testing | Week 4 · Day 18 | 🔲 Pending |
-| 21 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
+| 10 | [Redis Infrastructure Setup — Day 6](#10-redis-infrastructure-setup--day-6) | Week 2 · Day 6 | 🔲 In Progress |
+| 11 | [Restaurant Module — Day 6](#11-restaurant-module--day-6) | Week 2 · Day 6 | 🔲 In Progress |
+| 12 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
+| 13 | Employees | Week 2 · Day 8 | 🔲 Pending |
+| 14 | Menu | Week 2 · Day 9 | 🔲 Pending |
+| 15 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
+| 16 | Cart | Week 3 · Day 12 | 🔲 Pending |
+| 17 | Orders | Week 3 · Day 13 | 🔲 Pending |
+| 18 | Payments | Week 3 · Day 14 | 🔲 Pending |
+| 19 | Feedback | Week 3 · Day 15 | 🔲 Pending |
+| 20 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
+| 21 | Analytics | Week 4 · Day 17 | 🔲 Pending |
+| 22 | Testing | Week 4 · Day 18 | 🔲 Pending |
+| 23 | Deployment | Week 4 · Day 19–20 | 🔲 Pending |
 
 ---
 
@@ -1597,5 +1599,206 @@ This fix is global — every query involving `role` or `status` columns (includi
 - All PostgreSQL custom enum columns (`user_role`, `user_status`) bind correctly via JDBC
 - App starts and runs fully end-to-end — login endpoint is live and tested
 - Foundation is complete: exceptions, security, auth, DB — ready for Day 5 (User Management)
+
+---
+
+---
+
+## 10. Redis Infrastructure Setup — Day 6
+
+**Phase**: Week 2 · Day 6  
+**Date**: 2026-08-08  
+**Why added here**: Redis is required infrastructure for Day 11 customer sessions (primary session store) and Day 9 menu caching. Setting it up in Day 6 alongside the first cache-worthy module (restaurants) avoids retrofitting later.
+
+---
+
+### What Redis does in this project
+
+| Layer | What Redis stores | Why Redis and not PostgreSQL |
+|---|---|---|
+| Day 6 | Restaurant by ID | Frequently read, rarely changed. Saves a DB round-trip on every GET |
+| Day 9 | Full menu per restaurant | Highest read volume in the system — customers browse menu repeatedly |
+| Day 11 | Customer session token → session data | Sub-millisecond lookup + auto-expiry via Redis TTL. PostgreSQL would be 50× slower at scale |
+| Day 12 | Cart state per session | Cart changes constantly. Redis handles frequent writes; synced to DB on order placement |
+
+---
+
+### Architecture: How Spring Cache + Redis work together
+
+```
+Controller calls service method
+        │
+        ▼
+@Cacheable(“restaurants”, key="#id")          ← Spring intercepts
+        │
+        ├─ Cache HIT:  Return value directly from Redis   (no DB query)
+        └─ Cache MISS: Execute method body → query DB → store in Redis → return
+
+@CacheEvict(“restaurants”, key="#id")         ← On write/delete
+        │
+        └─ Delete the cached entry so next GET fetches fresh data
+```
+
+**Spring Cache abstraction** means the service code has no direct Redis calls. Annotations do all the work. If Redis goes down, the app falls back to PostgreSQL automatically (cache miss = DB hit).
+
+---
+
+### 10.1 — `pom.xml` — Two dependencies added
+
+```xml
+<!-- Redis client + Spring Data Redis -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+
+<!-- Spring Cache abstraction (@Cacheable, @CacheEvict, @CachePut) -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+```
+
+**Why two separate starters?**  
+`spring-boot-starter-data-redis` provides the Redis connection layer (Lettuce client by default). `spring-boot-starter-cache` provides the `@Cacheable` / `@CacheEvict` annotation engine. They work together but are independently usable — you could use Redis without the cache abstraction (e.g. for raw session storage on Day 11).
+
+---
+
+### 10.2 — `application.yml` — Redis + Cache config blocks added
+
+```yaml
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000      # default TTL: 10 min (ms)
+      cache-null-values: false  # never cache null
+```
+
+**Why `${REDIS_HOST:localhost}` with a default?** Unlike `JWT_SECRET` which must never have a fallback, Redis host is safe to default to localhost. If `REDIS_HOST` is not set in the environment, the app still works locally without any extra setup.
+
+**Why `cache-null-values: false`?** If a DB query returns null (entity not found), we don’t cache that null. Otherwise a future request for a newly created entity would incorrectly get a null from cache instead of hitting the DB.
+
+---
+
+### 10.3 — `application-local.yml` — Local Redis config
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:          # no password on local Homebrew Redis
+```
+
+---
+
+### 10.4 — `config/CacheConfig.java` — The Cache Manager
+
+```java
+@Configuration
+@EnableCaching
+public class CacheConfig {
+
+    @Bean
+    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        RedisCacheConfiguration defaultConfig = RedisCacheConfiguration
+                .defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(10))
+                .serializeKeysWith(pair(new StringRedisSerializer()))
+                .serializeValuesWith(pair(new GenericJackson2JsonRedisSerializer()))
+                .disableCachingNullValues();
+
+        return RedisCacheManager.builder(connectionFactory)
+                .cacheDefaults(defaultConfig)
+                .withCacheConfiguration("restaurants",
+                        defaultConfig.entryTtl(Duration.ofMinutes(10)))
+                .withCacheConfiguration("restaurantsByOwner",
+                        defaultConfig.entryTtl(Duration.ofMinutes(5)))
+                .withCacheConfiguration("menuItems",
+                        defaultConfig.entryTtl(Duration.ofMinutes(15)))
+                .withCacheConfiguration("customerSession",
+                        defaultConfig.entryTtl(Duration.ofMinutes(30)))
+                .build();
+    }
+}
+```
+
+**Why `GenericJackson2JsonRedisSerializer`?**  
+Stores cache values as human-readable JSON in Redis. You can inspect cached data with `redis-cli GET restaurants::some-uuid` and read it. The alternative (Java binary serialization) is opaque and breaks when class names change.
+
+**Why `StringRedisSerializer` for keys?**  
+Keys are stored as plain strings (`restaurants::550e8400-e29b...`). This is human-readable and efficient. Using Java serialization for keys produces unreadable binary strings.
+
+**Why `@EnableCaching` on this class and not `PlatoApplication`?**  
+Keeping infrastructure config in its own `@Configuration` class follows Single Responsibility. `PlatoApplication` already has `@EnableJpaAuditing` — adding more annotations there makes it a catch-all. `CacheConfig` is self-documenting: one file = one concern.
+
+---
+
+### 10.5 — Cache annotations on `RestaurantServiceImpl`
+
+```java
+// READ — cache the result after the first DB hit
+@Cacheable(value = "restaurants", key = "#id")
+public RestaurantResponse getById(UUID id, ...) { ... }
+
+// WRITE — evict stale cache after updating
+@CacheEvict(value = "restaurants", key = "#id")
+public RestaurantResponse update(UUID id, ...) { ... }
+
+@CacheEvict(value = "restaurants", key = "#id")
+public RestaurantResponse updateStatus(UUID id, ...) { ... }
+
+@CacheEvict(value = "restaurants", key = "#id")
+public RestaurantResponse updateSettings(UUID id, ...) { ... }
+```
+
+**Why NOT cache `getAll` (paginated list)?**  
+Paginated results contain many restaurants and change frequently (new restaurants added, status changes). Caching a page snapshot is risky — you’d serve stale lists. Single-entity caching (`getById`) is safe and high-value.
+
+---
+
+### 10.6 — Local Redis installation (one-time)
+
+```bash
+brew install redis            # install
+brew services start redis     # start as background service
+redis-cli ping                # should return: PONG
+```
+
+To start/stop alongside the project (without brew services):
+```bash
+redis-server &                # start
+redis-cli shutdown            # stop
+```
+
+---
+
+### Files Added / Modified
+
+| File | Change |
+|------|--------|
+| `pom.xml` | Added `spring-boot-starter-data-redis` + `spring-boot-starter-cache` |
+| `application.yml` | Added `spring.data.redis.*` + `spring.cache.*` blocks |
+| `application-local.yml` | Added local Redis connection defaults |
+| `config/CacheConfig.java` | **NEW** — `RedisCacheManager` bean with JSON serializer + per-cache TTLs |
+| `restaurant/RestaurantServiceImpl.java` | Added `@Cacheable` / `@CacheEvict` to read/write methods |
+
+---
+
+### What This Enables
+
+- Restaurant reads are cached for 10 minutes — repeated GETs hit Redis, not PostgreSQL
+- Cache automatically invalidated on any write (update/status/settings change)
+- Infrastructure ready for menu caching (Day 9) and customer session storage (Day 11)
+- `redis-cli` can be used to inspect live cache state during development
 
 ---

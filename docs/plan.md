@@ -1,6 +1,6 @@
 # Plato — 4-Week Backend Development & Deployment Plan
 
-> **Stack**: Java 21 · Spring Boot 3.5.5 · Spring Security 6 · JPA/Hibernate · PostgreSQL · Flyway · JWT · WebSocket (STOMP) · Maven  
+> **Stack**: Java 21 · Spring Boot 3.5.5 · Spring Security 6 · JPA/Hibernate · PostgreSQL · Flyway · JWT · Redis · WebSocket (STOMP) · Maven  
 > **Goal**: Production-ready, deployed backend from scratch in 28 days.
 
 ---
@@ -86,7 +86,14 @@ Before marking any module complete:
    - HikariCP connection pool configured
    - All secrets use `${ENV_VAR}` with **no default values** in the committed file
    - Local dev overrides live in `application-local.yml` (git-ignored)
-   - Custom `plato.jwt.*`, `plato.session.*`, `plato.qr.*` properties
+   - Custom `plato.jwt.*`, `plato.session.*`, `plato.qr.*`, `plato.redis.*` properties
+
+3. **Redis infrastructure setup** (added Day 6 — required before Day 11 customer sessions)
+   - Add `spring-boot-starter-data-redis` and `spring-boot-starter-cache` to `pom.xml`
+   - Configure Redis in `application.yml` (`spring.data.redis.*`, `spring.cache.*`)
+   - Add local Redis config in `application-local.yml`
+   - Create `config/CacheConfig.java` — per-cache TTLs, JSON serialization via Jackson
+   - Cache names defined: `restaurants`, `restaurantsByOwner`, `menuItems` (Day 9), `customerSession` (Day 11)
 
 3. ✅ **Create `common` package — shared infrastructure**
    - `ApiResponse<T>` — universal response wrapper (`@JsonInclude(NON_NULL)` keeps error responses lean)
@@ -317,6 +324,20 @@ Before marking any module complete:
      - `PUT /restaurants/{id}/settings` — updates settings fields on the restaurant row
 
 3. **Tenant isolation** — every service method validates `restaurant.owner_id == currentUser.id` (unless Super Admin).
+
+4. **Redis caching — infrastructure setup** (done here; used progressively from Day 9 onward)
+   - `pom.xml`: add `spring-boot-starter-data-redis`, `spring-boot-starter-cache`
+   - `application.yml`: add `spring.data.redis.*` and `spring.cache.*` blocks
+   - `application-local.yml`: Redis localhost defaults
+   - `config/CacheConfig.java`: `RedisCacheManager` with JSON serializer, per-cache TTLs
+   - `RestaurantServiceImpl`: add `@Cacheable` on `getById`, `@CacheEvict` on write methods
+   - **Cache map**:
+     | Cache name | Stores | TTL |
+     |---|---|---|
+     | `restaurants` | Single restaurant by ID | 10 min |
+     | `restaurantsByOwner` | Owner's restaurant list | 5 min |
+     | `menuItems` | Full menu per restaurant (Day 9) | 15 min |
+     | `customerSession` | Active customer session token → data (Day 11) | 30 min sliding |
 
 ---
 

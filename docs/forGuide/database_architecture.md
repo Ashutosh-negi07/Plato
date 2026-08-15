@@ -75,7 +75,6 @@ All enums are created first (V1) because every table that follows references the
 ## 4. Table Definitions
 
 ### 4.1 — `users`
-**Migration**: `V2__create_users.sql`
 **Purpose**: Stores all platform staff — Super Admins, Owners, Employees. Customers are never stored here.
 
 | Column | Type | Constraints | Notes |
@@ -96,7 +95,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.2 — `restaurants`
-**Migration**: `V3__create_restaurants.sql`
 **Purpose**: Each restaurant owned by one Owner. Restaurant settings (tax, payment methods, ordering rules) are embedded directly — no separate settings table.
 
 | Column | Type | Constraints | Notes |
@@ -128,7 +126,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.3 — `restaurant_tables`
-**Migration**: `V4__create_restaurant_tables.sql`
 **Purpose**: Physical dining tables in a restaurant. Each table has a unique QR token — scanning it creates a customer session.
 
 | Column | Type | Constraints | Notes |
@@ -147,7 +144,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.4 — `employees`
-**Migration**: `V5__create_employees.sql`
 **Purpose**: Links a platform user account to a restaurant and assigns a fine-grained restaurant role. One user can only be an employee of one restaurant (`user_id UNIQUE`).
 
 | Column | Type | Constraints | Notes |
@@ -165,7 +161,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.5 — `menu_categories`
-**Migration**: `V6__create_menu.sql`
 **Purpose**: Groups menu items into categories (e.g. Starters, Main Course, Desserts).
 
 | Column | Type | Constraints | Notes |
@@ -183,7 +178,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.6 — `menu_items`
-**Migration**: `V6__create_menu.sql`
 **Purpose**: Individual dishes. Each belongs to one category within one restaurant.
 
 | Column | Type | Constraints | Notes |
@@ -206,7 +200,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.7 — `customer_sessions`
-**Migration**: `V7__create_customer_sessions.sql`
 **Purpose**: Represents one dining visit. Created when a customer scans the QR code. Carries the `session_token` used as the customer's authentication header (`X-Session-Token`) for all subsequent requests.
 
 | Column | Type | Constraints | Notes |
@@ -228,7 +221,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.8 — `cart_items`
-**Migration**: `V8__create_cart_items.sql`
 **Purpose**: Items a customer has added to their cart before placing an order. There is no separate `carts` table — cart items are linked directly to the session. When an order is placed, the cart items are converted to order items and the cart is cleared.
 
 | Column | Type | Constraints | Notes |
@@ -247,7 +239,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.9 — `orders`
-**Migration**: `V9__create_orders.sql`
 **Purpose**: A placed order within a session. One session can have multiple orders (e.g. customer orders starters, then orders mains separately). Totals are calculated and stored at order placement time.
 
 | Column | Type | Constraints | Notes |
@@ -271,7 +262,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.10 — `order_items`
-**Migration**: `V9__create_orders.sql`
 **Purpose**: Individual items within a placed order. Each item has its own status so the kitchen can track progress item by item.
 
 | Column | Type | Constraints | Notes |
@@ -290,7 +280,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.11 — `payments`
-**Migration**: `V10__create_payments.sql`
 **Purpose**: Payment record for a session. One session has one payment record covering all orders. The bill is calculated by summing `grand_total` across all session orders.
 
 | Column | Type | Constraints | Notes |
@@ -309,7 +298,6 @@ All enums are created first (V1) because every table that follows references the
 ---
 
 ### 4.12 — `feedback`
-**Migration**: `V11__create_feedback.sql`
 **Purpose**: Post-payment review submitted by the customer. Strictly one per session (enforced by `UNIQUE` constraint on `session_id`). Can only be submitted after payment is completed.
 
 | Column | Type | Constraints | Notes |
@@ -322,70 +310,3 @@ All enums are created first (V1) because every table that follows references the
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()` | No `updated_at` — feedback is immutable once submitted |
 
 **Indexes**: `idx_feedback_restaurant_id`
-
----
-
-## 5. Flyway Migration Sequence
-
-Flyway runs these 11 files in version order on every application startup. Files are never modified after being committed — schema changes always go in a new migration file.
-
-| Version | File | Creates | Depends On |
-|---------|------|---------|-----------|
-| V1 | `V1__create_enums.sql` | 9 PostgreSQL enum types | — |
-| V2 | `V2__create_users.sql` | `users` | V1 |
-| V3 | `V3__create_restaurants.sql` | `restaurants` | V2 |
-| V4 | `V4__create_restaurant_tables.sql` | `restaurant_tables` | V3 |
-| V5 | `V5__create_employees.sql` | `employees` | V2, V3 |
-| V6 | `V6__create_menu.sql` | `menu_categories`, `menu_items` | V3 |
-| V7 | `V7__create_customer_sessions.sql` | `customer_sessions` | V3, V4 |
-| V8 | `V8__create_cart_items.sql` | `cart_items` | V6, V7 |
-| V9 | `V9__create_orders.sql` | `orders`, `order_items` | V3, V4, V6, V7 |
-| V10 | `V10__create_payments.sql` | `payments` | V7 |
-| V11 | `V11__create_feedback.sql` | `feedback` | V3, V7 |
-
----
-
-## 6. All Foreign Keys
-
-| Table | Column | References | Notes |
-|-------|--------|-----------|-------|
-| `restaurants` | `owner_id` | `users(id)` | |
-| `restaurant_tables` | `restaurant_id` | `restaurants(id)` | |
-| `employees` | `user_id` | `users(id)` | UNIQUE — one user per restaurant |
-| `employees` | `restaurant_id` | `restaurants(id)` | |
-| `menu_categories` | `restaurant_id` | `restaurants(id)` | |
-| `menu_items` | `restaurant_id` | `restaurants(id)` | |
-| `menu_items` | `category_id` | `menu_categories(id)` | |
-| `customer_sessions` | `restaurant_id` | `restaurants(id)` | |
-| `customer_sessions` | `table_id` | `restaurant_tables(id)` | |
-| `cart_items` | `session_id` | `customer_sessions(id)` | |
-| `cart_items` | `menu_item_id` | `menu_items(id)` | |
-| `orders` | `restaurant_id` | `restaurants(id)` | |
-| `orders` | `table_id` | `restaurant_tables(id)` | |
-| `orders` | `session_id` | `customer_sessions(id)` | |
-| `order_items` | `order_id` | `orders(id)` | |
-| `order_items` | `menu_item_id` | `menu_items(id)` | |
-| `payments` | `session_id` | `customer_sessions(id)` | |
-| `feedback` | `restaurant_id` | `restaurants(id)` | |
-| `feedback` | `session_id` | `customer_sessions(id)` | UNIQUE — one feedback per session |
-
-> No `ON DELETE CASCADE` anywhere. All deletes are soft (via status field). Full audit history is preserved.
-
----
-
-## 7. Key Design Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| **UUID primary keys** | Non-sequential (not guessable like integer IDs), DB-generated, globally unique across tables |
-| **Customers have no user accounts** | QR-scan-based sessions are frictionless — customers never sign up or log in |
-| **Restaurant settings embedded in `restaurants`** | Avoids a 1:1 join on every request; settings are part of the restaurant entity |
-| **No separate `carts` table** | Cart items link directly to the session — simpler schema, fewer joins |
-| **`price_at_time` in cart, `unit_price` in order** | Price snapshots prevent menu price changes from affecting in-progress orders |
-| **`order_number` as human-readable string** | Staff and customers communicate using `ORD-20260730-001` instead of a UUID |
-| **Soft deletes everywhere** | `status = DELETED/INACTIVE` instead of physical `DELETE`. Full audit history preserved. |
-| **`session_status = EXPIRED`** | A `@Scheduled` job runs every 5 minutes to mark sessions inactive after 30 min of inactivity |
-| **`feedback.session_id UNIQUE`** | Database-level enforcement of one review per visit — cannot be bypassed at application layer |
-| **`TIMESTAMPTZ` for all timestamps** | Timezone-aware storage; safe for multi-region deployments |
-| **`ddl-auto: validate`** | Hibernate only verifies entities match the schema — Flyway is the sole schema manager |
-| **`restaurant_id` denormalised on `orders`, `feedback`** | Avoids multi-hop joins when querying all orders/feedback for a restaurant's dashboard |
