@@ -46,7 +46,7 @@ public class UserController {
     //   ?page=0&size=20&sort=createdAt,desc
 
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
 
@@ -74,7 +74,7 @@ public class UserController {
     // Returns 201 CREATED with the new user in the body.
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> createUser(
             @Valid @RequestBody CreateUserRequest request) {
 
@@ -104,7 +104,7 @@ public class UserController {
     // Called as: PATCH /api/v1/users/{id}/status?value=INACTIVE
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> updateStatus(
             @PathVariable UUID id,
             @RequestParam UserStatus value) {
@@ -118,7 +118,7 @@ public class UserController {
     // Returns 204 No Content — no body needed for a delete response.
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
