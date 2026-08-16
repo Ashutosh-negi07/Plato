@@ -28,4 +28,5 @@ public class ResourceNotFoundException extends PlatoException {
     public ResourceNotFoundException(String resource, String field, String value) {
         super(resource + " not found with " + field + ": " + value, HttpStatus.NOT_FOUND);
     }
+
 }
