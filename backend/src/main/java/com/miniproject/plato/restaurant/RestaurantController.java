@@ -42,22 +42,21 @@ public class RestaurantController {
 
     // ── 2. List restaurants ──────────────────────────────────────────────────
     // SUPER_ADMIN → all restaurants (paginated)
-    // OWNER       → only their own restaurants (paginated)
+    // OWNER → only their own restaurants (paginated)
     // The service decides which query to run based on role.
     @GetMapping
     @PreAuthorize("hasAnyRole('OWNER', 'SUPER_ADMIN')")
     public ApiResponse<Page<RestaurantResponse>> getAllRestaurants(
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable) {
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         UUID callerId = getCurrentUserId();
-        String role = getCurrentRole();   // "SUPER_ADMIN" or "OWNER" (ROLE_ stripped)
+        String role = getCurrentRole(); // "SUPER_ADMIN" or "OWNER" (ROLE_ stripped)
         return ApiResponse.ok("Restaurants fetched successfully",
                 restaurantService.getAllRestaurants(callerId, role, pageable));
     }
 
     // ── 3. Get one restaurant ────────────────────────────────────────────────
     // SUPER_ADMIN → any restaurant
-    // OWNER       → only their own (service throws 403 if not theirs)
+    // OWNER → only their own (service throws 403 if not theirs)
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('OWNER', 'SUPER_ADMIN')")
     public ApiResponse<RestaurantResponse> getRestaurantById(@PathVariable UUID id) {
@@ -94,7 +93,8 @@ public class RestaurantController {
 
     // ── 6. Get settings ──────────────────────────────────────────────────────
     // Reuses getRestaurantById — all restaurant data including settings is
-    // returned in the same RestaurantResponse (no separate SettingsResponse needed).
+    // returned in the same RestaurantResponse (no separate SettingsResponse
+    // needed).
     @GetMapping("/{id}/settings")
     @PreAuthorize("hasRole('OWNER')")
     public ApiResponse<RestaurantResponse> getSettings(@PathVariable UUID id) {

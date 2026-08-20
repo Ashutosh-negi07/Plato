@@ -1,4 +1,9 @@
 package com.miniproject.plato.table.dto;
 
-public class UpdateTableRequest {
-}
+public record UpdateTableRequest(
+
+        String tableNumber,
+        Integer capacity,
+        String label
+
+) {}
