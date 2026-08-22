@@ -56,14 +56,6 @@ public class TableServiceImpl implements TableService{
     public TableResponse updateTable(UUID restaurantId, UUID tableId, UpdateTableRequest request, UUID ownerId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
-        RestaurantTable table = tableRepository.findById(tableId)
-                .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
-
-// ADD THIS — prevent cross-restaurant table access
-        if (!table.getRestaurantId().equals(restaurantId)) {
-            throw new ResourceNotFoundException("Table", tableId); // treat as not found, not 403
-        }
-
         if (!restaurant.getOwnerId().equals(ownerId)) {
             throw new UnauthorizedAccessException("You do not own this restaurant");
         }
@@ -84,15 +76,6 @@ public class TableServiceImpl implements TableService{
         if (!restaurant.getOwnerId().equals(ownerId)) {
             throw new UnauthorizedAccessException("You do not own this restaurant");
         }
-        RestaurantTable table = tableRepository.findById(tableId)
-                .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
-
-// ADD THIS — prevent cross-restaurant table access
-        if (!table.getRestaurantId().equals(restaurantId)) {
-            throw new ResourceNotFoundException("Table", tableId); // treat as not found, not 403
-        }
-
-
         RestaurantTable table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
         if (!table.getRestaurantId().equals(restaurantId)) {
