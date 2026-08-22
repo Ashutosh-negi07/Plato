@@ -1,9 +1,9 @@
 # Plato — Updated Master Plan (2-Week Backend Completion)
 
-> **Scanned on**: 2026-08-15  
-> **Total Java files found**: 31  
-> **Total SQL migrations found**: 3 (V1, V2, V3)  
-> **Backend completeness**: ~28% (infrastructure done, 0 complete feature modules)
+> **Last updated**: 2026-08-21  
+> **Total Java files**: ~56 (growing)  
+> **Total SQL migrations**: 4 (V1–V4 applied) — V5 in progress  
+> **Backend completeness**: ~50% by files · ~64% by endpoints · Staff side ~80% done
 
 ---
 
@@ -32,14 +32,16 @@ These files exist and work. You never touch these again.
 
 ---
 
-### Layer 2 — Database (27% Done ⚠️)
+### Layer 2 — Database (45% Done ⚠️)
 
 | Migration | Status | Table |
 |-----------|--------|-------|
 | V1__create_enums.sql | ✅ Done | All 9 enum types |
 | V2__create_users.sql | ✅ Done | `users` |
 | V3__create_restaurants.sql | ✅ Done | `restaurants` |
-| V4 through V11 | 🔲 8 missing | tables, employees, menu, sessions, cart, orders, payments, feedback |
+| V4__create_restaurant_tables.sql | ✅ Done | `restaurant_tables` |
+| V5__create_employees.sql | 🔄 In progress | `employees` |
+| V6 through V11 | 🔲 6 missing | menu, sessions, cart, orders, payments, feedback |
 
 ---
 
@@ -57,45 +59,90 @@ These files exist and work. You never touch these again.
 
 ---
 
-### Layer 4 — User Module (40% Done ⚠️)
-
-| File | Status | What's missing |
-|------|--------|----------------|
-| `user/User.java` | ✅ Done | — |
-| `user/UserRole.java` | ✅ Done | — |
-| `user/UserStatus.java` | ✅ Done | — |
-| `user/UserRepository.java` | ✅ Done | — |
-| `user/UserService.java` | ✅ Done (14 lines) | API method signatures missing |
-| `user/UserServiceImpl.java` | ✅ Done (55 lines) | API method impls missing |
-| `user/DataInitializer.java` | ✅ Done | — |
-| `user/dto/` folder | ❌ Missing | Entire folder doesn't exist |
-| `user/UserMapper.java` | ❌ Missing | — |
-| `user/UserController.java` | ❌ Missing | 6 endpoints not exposed |
-
-**Working endpoints**: 0 (no controller)
-
----
-
-### Layer 5 — Restaurant Module (20% Done ⚠️)
+### Layer 4 — User Module (100% Done ✅)
 
 | File | Status |
 |------|--------|
-| `restaurant/Restaurant.java` | ✅ Done (126 lines) |
-| `restaurant/RestaurantStatus.java` | ✅ Done |
-| `restaurant/RestaurantRepository.java` | ✅ Done (26 lines) |
-| `restaurant/dto/` folder | ❌ Missing |
-| `restaurant/RestaurantMapper.java` | ❌ Missing |
-| `restaurant/RestaurantService.java` | ❌ Missing |
-| `restaurant/RestaurantServiceImpl.java` | ❌ Missing |
-| `restaurant/RestaurantController.java` | ❌ Missing |
+| `user/User.java` | ✅ Done |
+| `user/UserRole.java` | ✅ Done |
+| `user/UserStatus.java` | ✅ Done |
+| `user/UserRepository.java` | ✅ Done |
+| `user/UserService.java` | ✅ Done |
+| `user/UserServiceImpl.java` | ✅ Done |
+| `user/DataInitializer.java` | ✅ Done |
+| `user/dto/UserResponse.java` | ✅ Done |
+| `user/dto/CreateUserRequest.java` | ✅ Done |
+| `user/dto/UpdateUserRequest.java` | ✅ Done |
+| `user/UserMapper.java` | ✅ Done |
+| `user/UserController.java` | ✅ Done |
 
-**Working endpoints**: 0 (no service or controller)
+**Working endpoints**: 6 ✅
+
+---
+
+### Layer 5 — Restaurant Module (100% Done ✅)
+
+| File | Status |
+|------|--------|
+| `restaurant/Restaurant.java` | ✅ Done |
+| `restaurant/RestaurantStatus.java` | ✅ Done |
+| `restaurant/RestaurantRepository.java` | ✅ Done |
+| `restaurant/dto/CreateRestaurantRequest.java` | ✅ Done |
+| `restaurant/dto/UpdateRestaurantRequest.java` | ✅ Done |
+| `restaurant/dto/RestaurantSettingsRequest.java` | ✅ Done |
+| `restaurant/dto/RestaurantResponse.java` | ✅ Done |
+| `restaurant/RestaurantMapper.java` | ✅ Done |
+| `restaurant/RestaurantService.java` | ✅ Done |
+| `restaurant/RestaurantServiceImpl.java` | ✅ Done |
+| `restaurant/RestaurantController.java` | ✅ Done |
+
+**Working endpoints**: 7 ✅
+
+---
+
+### Layer 6 — Table Module (100% Done ✅)
+
+| File | Status |
+|------|--------|
+| `table/RestaurantTable.java` | ✅ Done |
+| `table/TableStatus.java` | ✅ Done |
+| `table/TableRepository.java` | ✅ Done |
+| `table/QrTokenService.java` | ✅ Done |
+| `table/dto/CreateTableRequest.java` | ✅ Done |
+| `table/dto/UpdateTableRequest.java` | ✅ Done |
+| `table/dto/TableResponse.java` | ✅ Done |
+| `table/TableMapper.java` | ✅ Done |
+| `table/TableService.java` | ✅ Done |
+| `table/TableServiceImpl.java` | ✅ Done |
+| `table/TableController.java` | ✅ Done |
+
+**Working endpoints**: 6 ✅ (all tested via curl)
+
+---
+
+### Layer 7 — Employee Module (10% Done 🔄)
+
+| File | Status |
+|------|--------|
+| `V5__create_employees.sql` | 🔄 In progress |
+| `employee/EmployeeRole.java` | 🔲 |
+| `employee/Employee.java` | 🔲 |
+| `employee/EmployeeRepository.java` | 🔲 |
+| `employee/dto/AssignEmployeeRequest.java` | 🔲 |
+| `employee/dto/UpdateEmployeeRoleRequest.java` | 🔲 |
+| `employee/dto/EmployeeResponse.java` | 🔲 |
+| `employee/EmployeeMapper.java` | 🔲 |
+| `employee/EmployeeService.java` | 🔲 |
+| `employee/EmployeeServiceImpl.java` | 🔲 |
+| `employee/EmployeeController.java` | 🔲 |
+
+**Working endpoints**: 0 (in progress)
 
 ---
 
 ### Everything Else — 0% Done 🔲
 
-Tables, Employees, Menu, Customer Sessions, Cart, Orders, Payments, Feedback, WebSocket — none started.
+Menu, Customer Sessions, Cart, Orders, Payments, Feedback, WebSocket — not started.
 
 ---
 
@@ -104,15 +151,19 @@ Tables, Employees, Menu, Customer Sessions, Cart, Orders, Payments, Feedback, We
 | Area | Done | Total | % |
 |------|------|-------|---|
 | Foundation files | 18 | 18 | 100% |
-| Migrations | 3 | 11 | 27% |
+| Migrations applied | 4 | 11 | 36% |
 | Auth endpoints | 1 | 1 | 100% |
-| User module files | 7 | 10 | 70% |
-| User endpoints | 0 | 6 | 0% |
-| Restaurant module files | 3 | 8 | 37% |
-| Restaurant endpoints | 0 | 7 | 0% |
-| All other modules | 0 | ~50 | 0% |
-| **Overall (files)** | **31** | **~110** | **~28%** |
-| **Overall (endpoints)** | **1** | **~45** | **~2%** |
+| User module files | 12 | 12 | 100% |
+| User endpoints | 6 | 6 | 100% |
+| Restaurant module files | 11 | 11 | 100% |
+| Restaurant endpoints | 7 | 7 | 100% |
+| Table module files | 11 | 11 | 100% |
+| Table endpoints | 6 | 6 | 100% |
+| Employee module files | 1 | 11 | 9% |
+| Employee endpoints | 0 | 4 | 0% |
+| Menu + Customer Flow | 0 | ~57 | 0% |
+| **Overall (files)** | **~56** | **~121** | **~46%** |
+| **Overall (endpoints)** | **20** | **~45** | **~44%** |
 
 ---
 
@@ -696,19 +747,19 @@ class SomeServiceImplTest {
 
 ## One-Line Summary Per Day
 
-| Day | What you build | Module % done after |
-|-----|---------------|---------------------|
-| 1 | User DTOs + Mapper + Controller | User: **100%** |
-| 2 | Restaurant Service + DTOs + Controller | Restaurant: **100%** |
-| 3 | Tables entity + QR service + Controller + V4 migration | Tables: **100%** |
-| 4 | Employees entity + Controller + V5 migration | Employees: **100%** |
-| 5 | Menu categories + items + public endpoint + V6 migration | Menu: **100%** |
-| 6 | Integration test — staff side works end to end | — |
-| 7 | Session start + CustomerSessionFilter + V7 migration | Sessions: **100%** |
-| 8 | Cart CRUD scoped to session + V8 migration | Cart: **100%** |
-| 9 | Orders + kitchen view + state machine + V9 migration | Orders: **100%** |
-| 10 | Payments + bill calc + session close + V10 migration | Payments: **100%** |
-| 11 | Feedback + summary endpoint + V11 migration | Feedback: **100%** |
-| 12 | WebSocket config + OrderEventPublisher | WebSocket: **100%** |
-| 13 | Unit tests for Auth, User, Restaurant, Order, Payment | Tests: ~60% |
-| 14 | README + Postman export + final compile check | Project: **Done** |
+| Day | What you build | Status |
+|-----|---------------|--------|
+| 1 | User DTOs + Mapper + Controller | ✅ **Done & tested** |
+| 2 | Restaurant Service + DTOs + Controller | ✅ **Done & tested** |
+| 3 | Tables entity + QR service + Controller + V4 migration | ✅ **Done & tested (curl verified)** |
+| 4 | Employees entity + Controller + V5 migration | 🔄 **In progress** |
+| 5 | Menu categories + items + public endpoint + V6 migration | 🔲 Todo |
+| 6 | Integration test — staff side works end to end | 🔲 Todo |
+| 7 | Session start + CustomerSessionFilter + V7 migration | 🔲 Todo |
+| 8 | Cart CRUD scoped to session + V8 migration | 🔲 Todo |
+| 9 | Orders + kitchen view + state machine + V9 migration | 🔲 Todo |
+| 10 | Payments + bill calc + session close + V10 migration | 🔲 Todo |
+| 11 | Feedback + summary endpoint + V11 migration | 🔲 Todo |
+| 12 | WebSocket config + OrderEventPublisher | 🔲 Todo |
+| 13 | Unit tests for Auth, User, Restaurant, Order, Payment | 🔲 Todo |
+| 14 | README + Postman export + final compile check | 🔲 Todo |
