@@ -1,10 +1,10 @@
-package com.miniproject.plato.table;
+package com.miniproject.plato.modules.table;
 
 import com.miniproject.plato.common.ApiResponse;
 import com.miniproject.plato.security.JwtTokenProvider;
-import com.miniproject.plato.table.dto.CreateTableRequest;
-import com.miniproject.plato.table.dto.TableResponse;
-import com.miniproject.plato.table.dto.UpdateTableRequest;
+import com.miniproject.plato.modules.table.dto.CreateTableRequest;
+import com.miniproject.plato.modules.table.dto.TableResponse;
+import com.miniproject.plato.modules.table.dto.UpdateTableRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

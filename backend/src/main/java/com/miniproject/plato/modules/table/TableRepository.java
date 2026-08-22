@@ -1,4 +1,4 @@
-package com.miniproject.plato.table;
+package com.miniproject.plato.modules.table;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

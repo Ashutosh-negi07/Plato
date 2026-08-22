@@ -1,6 +1,6 @@
-package com.miniproject.plato.user.dto;
+package com.miniproject.plato.modules.user.dto;
 
-import com.miniproject.plato.user.UserRole;
+import com.miniproject.plato.modules.user.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

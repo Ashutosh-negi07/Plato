@@ -1,4 +1,4 @@
-package com.miniproject.plato.user;
+package com.miniproject.plato.modules.user;
 
 public enum UserRole {
     SUPER_ADMIN,

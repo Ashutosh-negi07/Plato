@@ -1,4 +1,4 @@
-package com.miniproject.plato.table;
+package com.miniproject.plato.modules.table;
 
 public enum TableStatus {
     AVAILABLE,

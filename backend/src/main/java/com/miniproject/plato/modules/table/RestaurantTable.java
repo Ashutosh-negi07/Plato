@@ -1,4 +1,4 @@
-package com.miniproject.plato.table;
+package com.miniproject.plato.modules.table;
 
 import com.miniproject.plato.common.BaseEntity;
 import jakarta.persistence.*;

@@ -1,4 +1,4 @@
-package com.miniproject.plato.restaurant;
+package com.miniproject.plato.modules.restaurant;
 public enum RestaurantStatus {
     ACTIVE,     // visible and operational
     INACTIVE,   // hidden from customers, owner can still manage

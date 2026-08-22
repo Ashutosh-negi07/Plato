@@ -1,6 +1,6 @@
-package com.miniproject.plato.user;
+package com.miniproject.plato.modules.user;
 
-import com.miniproject.plato.user.dto.UserResponse;
+import com.miniproject.plato.modules.user.dto.UserResponse;
 import org.springframework.stereotype.Component;
 
 // ------------------------------------------------------------------

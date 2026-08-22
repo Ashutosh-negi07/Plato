@@ -1,8 +1,8 @@
-package com.miniproject.plato.table;
+package com.miniproject.plato.modules.table;
 
-import com.miniproject.plato.table.dto.CreateTableRequest;
-import com.miniproject.plato.table.dto.TableResponse;
-import com.miniproject.plato.table.dto.UpdateTableRequest;
+import com.miniproject.plato.modules.table.dto.CreateTableRequest;
+import com.miniproject.plato.modules.table.dto.TableResponse;
+import com.miniproject.plato.modules.table.dto.UpdateTableRequest;
 import java.util.List;
 import java.util.UUID;
 

@@ -1,4 +1,4 @@
-package com.miniproject.plato.restaurant.dto;
+package com.miniproject.plato.modules.restaurant.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

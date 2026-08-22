@@ -1,8 +1,7 @@
-package com.miniproject.plato.user.dto;
+package com.miniproject.plato.modules.user.dto;
 
-import com.miniproject.plato.user.UserRole;
-import com.miniproject.plato.user.UserStatus;
-import jdk.jshell.Snippet;
+import com.miniproject.plato.modules.user.UserRole;
+import com.miniproject.plato.modules.user.UserStatus;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;

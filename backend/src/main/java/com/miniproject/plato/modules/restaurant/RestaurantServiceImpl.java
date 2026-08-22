@@ -1,11 +1,11 @@
-package com.miniproject.plato.restaurant;
+package com.miniproject.plato.modules.restaurant;
 
 import com.miniproject.plato.exception.ResourceNotFoundException;
 import com.miniproject.plato.exception.UnauthorizedAccessException;
-import com.miniproject.plato.restaurant.dto.CreateRestaurantRequest;
-import com.miniproject.plato.restaurant.dto.RestaurantResponse;
-import com.miniproject.plato.restaurant.dto.RestaurantSettingsRequest;
-import com.miniproject.plato.restaurant.dto.UpdateRestaurantRequest;
+import com.miniproject.plato.modules.restaurant.dto.CreateRestaurantRequest;
+import com.miniproject.plato.modules.restaurant.dto.RestaurantResponse;
+import com.miniproject.plato.modules.restaurant.dto.RestaurantSettingsRequest;
+import com.miniproject.plato.modules.restaurant.dto.UpdateRestaurantRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;

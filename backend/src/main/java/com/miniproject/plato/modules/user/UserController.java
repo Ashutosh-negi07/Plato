@@ -1,10 +1,10 @@
-package com.miniproject.plato.user;
+package com.miniproject.plato.modules.user;
 
 import com.miniproject.plato.common.ApiResponse;
 import com.miniproject.plato.exception.UnauthorizedAccessException;
-import com.miniproject.plato.user.dto.CreateUserRequest;
-import com.miniproject.plato.user.dto.UpdateUserRequest;
-import com.miniproject.plato.user.dto.UserResponse;
+import com.miniproject.plato.modules.user.dto.CreateUserRequest;
+import com.miniproject.plato.modules.user.dto.UpdateUserRequest;
+import com.miniproject.plato.modules.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

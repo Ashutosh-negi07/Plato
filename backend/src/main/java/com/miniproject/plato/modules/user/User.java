@@ -1,4 +1,4 @@
-package com.miniproject.plato.user;
+package com.miniproject.plato.modules.user;
 
 import com.miniproject.plato.common.BaseEntity;
 import jakarta.persistence.*;

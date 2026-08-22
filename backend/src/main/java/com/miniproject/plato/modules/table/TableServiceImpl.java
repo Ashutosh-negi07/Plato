@@ -1,20 +1,17 @@
-package com.miniproject.plato.table;
-
+package com.miniproject.plato.modules.table;
 
 import com.miniproject.plato.exception.ConflictException;
 import com.miniproject.plato.exception.ResourceNotFoundException;
 import com.miniproject.plato.exception.UnauthorizedAccessException;
-import com.miniproject.plato.restaurant.Restaurant;
-import com.miniproject.plato.restaurant.RestaurantRepository;
-import com.miniproject.plato.table.dto.CreateTableRequest;
-import com.miniproject.plato.table.dto.TableResponse;
-import com.miniproject.plato.table.dto.UpdateTableRequest;
-
+import com.miniproject.plato.modules.restaurant.Restaurant;
+import com.miniproject.plato.modules.restaurant.RestaurantRepository;
+import com.miniproject.plato.modules.table.dto.CreateTableRequest;
+import com.miniproject.plato.modules.table.dto.TableResponse;
+import com.miniproject.plato.modules.table.dto.UpdateTableRequest;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import com.miniproject.plato.table.RestaurantTable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -24,14 +21,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(readOnly = true)
-public class TableServiceImpl implements TableService{
-
+public class TableServiceImpl implements TableService {
 
     private final TableRepository tableRepository;
     private final TableMapper tableMapper;
     private final QrTokenService qrTokenService;
     private final RestaurantRepository restaurantRepository;
-
 
     @Override
     @Transactional
@@ -44,7 +39,8 @@ public class TableServiceImpl implements TableService{
         }
         // Prevent duplicate table numbers within the same restaurant
         if (tableRepository.existsByRestaurantIdAndTableNumber(restaurantId, request.tableNumber())) {
-            throw new ConflictException("Table number '" + request.tableNumber() + "' already exists in this restaurant");
+            throw new ConflictException(
+                    "Table number '" + request.tableNumber() + "' already exists in this restaurant");
         }
         String token = qrTokenService.generateToken();
         RestaurantTable table = tableMapper.toEntity(restaurantId, request, token);
@@ -101,7 +97,6 @@ public class TableServiceImpl implements TableService{
         return tableMapper.toResponse(table); // dirty checking saves automatically
     }
 
-
     @Override
     public List<TableResponse> getTablesByRestaurant(UUID restaurantId, UUID callerId, String callerRole) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
@@ -117,8 +112,6 @@ public class TableServiceImpl implements TableService{
                 .toList();
     }
 
-
-
     @Override
     public TableResponse getTableById(UUID restaurantId, UUID tableId, UUID callerId, String callerRole) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
@@ -130,6 +123,10 @@ public class TableServiceImpl implements TableService{
 
         RestaurantTable table = tableRepository.findById(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
+
+        if (!table.getRestaurantId().equals(restaurantId)) {
+            throw new ResourceNotFoundException("Table", tableId); // 404 — never reveal it exists elsewhere
+        }
 
         return tableMapper.toResponse(table);
     }

@@ -1,4 +1,4 @@
-package com.miniproject.plato.table.dto;
+package com.miniproject.plato.modules.table.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

@@ -1,4 +1,4 @@
-package com.miniproject.plato.user;
+package com.miniproject.plato.modules.user;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

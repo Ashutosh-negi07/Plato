@@ -1,6 +1,6 @@
-package com.miniproject.plato.table.dto;
+package com.miniproject.plato.modules.table.dto;
 
-import com.miniproject.plato.table.TableStatus;
+import com.miniproject.plato.modules.table.TableStatus;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

@@ -1,4 +1,4 @@
-package com.miniproject.plato.user.dto;
+package com.miniproject.plato.modules.user.dto;
 
 import lombok.Getter;
 import lombok.Setter;

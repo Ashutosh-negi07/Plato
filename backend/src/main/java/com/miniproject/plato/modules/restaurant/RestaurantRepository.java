@@ -1,4 +1,4 @@
-package com.miniproject.plato.restaurant;
+package com.miniproject.plato.modules.restaurant;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

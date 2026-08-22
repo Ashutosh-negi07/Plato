@@ -1,6 +1,6 @@
-package com.miniproject.plato.restaurant.dto;
+package com.miniproject.plato.modules.restaurant.dto;
 
-import com.miniproject.plato.restaurant.RestaurantStatus;
+import com.miniproject.plato.modules.restaurant.RestaurantStatus;
 import lombok.*;
 
 import java.math.BigDecimal;

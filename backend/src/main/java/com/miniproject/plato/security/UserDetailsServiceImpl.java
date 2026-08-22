@@ -1,8 +1,8 @@
 package com.miniproject.plato.security;
 
-import com.miniproject.plato.user.User;
-import com.miniproject.plato.user.UserRepository;
-import com.miniproject.plato.user.UserStatus;
+import com.miniproject.plato.modules.user.User;
+import com.miniproject.plato.modules.user.UserRepository;
+import com.miniproject.plato.modules.user.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

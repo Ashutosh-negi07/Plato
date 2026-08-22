@@ -1,9 +1,9 @@
-package com.miniproject.plato.restaurant;
+package com.miniproject.plato.modules.restaurant;
 
-import com.miniproject.plato.restaurant.dto.CreateRestaurantRequest;
-import com.miniproject.plato.restaurant.dto.RestaurantResponse;
-import com.miniproject.plato.restaurant.dto.RestaurantSettingsRequest;
-import com.miniproject.plato.restaurant.dto.UpdateRestaurantRequest;
+import com.miniproject.plato.modules.restaurant.dto.CreateRestaurantRequest;
+import com.miniproject.plato.modules.restaurant.dto.RestaurantResponse;
+import com.miniproject.plato.modules.restaurant.dto.RestaurantSettingsRequest;
+import com.miniproject.plato.modules.restaurant.dto.UpdateRestaurantRequest;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;

@@ -1,8 +1,8 @@
-package com.miniproject.plato.user;
+package com.miniproject.plato.modules.user;
 
-import com.miniproject.plato.user.dto.CreateUserRequest;
-import com.miniproject.plato.user.dto.UpdateUserRequest;
-import com.miniproject.plato.user.dto.UserResponse;
+import com.miniproject.plato.modules.user.dto.CreateUserRequest;
+import com.miniproject.plato.modules.user.dto.UpdateUserRequest;
+import com.miniproject.plato.modules.user.dto.UserResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

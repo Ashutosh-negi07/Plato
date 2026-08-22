@@ -1,4 +1,4 @@
-package com.miniproject.plato.restaurant;
+package com.miniproject.plato.modules.restaurant;
 
 import com.miniproject.plato.common.BaseEntity;
 import jakarta.persistence.*;
