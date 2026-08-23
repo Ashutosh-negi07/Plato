@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record EmployeeResponse(
         UUID id,
-UUID userId,
+        UUID userId,
         UUID restaurantId,
         EmployeeRole role,
         boolean isActive,
