@@ -33,7 +33,7 @@ public class EmployeeMapper {
         );
     }
 
-    
+
     public void applyRoleUpdate(UpdateEmployeeRoleRequest request, Employee employee) {
         employee.setRole(request.role());
     }
