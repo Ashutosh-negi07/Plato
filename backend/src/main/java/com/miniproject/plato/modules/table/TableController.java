@@ -1,16 +1,15 @@
 package com.miniproject.plato.modules.table;
 
 import com.miniproject.plato.common.ApiResponse;
-import com.miniproject.plato.security.JwtTokenProvider;
 import com.miniproject.plato.modules.table.dto.CreateTableRequest;
 import com.miniproject.plato.modules.table.dto.TableResponse;
 import com.miniproject.plato.modules.table.dto.UpdateTableRequest;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,17 +22,21 @@ import java.util.UUID;
 public class TableController {
 
     private final TableService tableService;
-    private final JwtTokenProvider jwtTokenProvider;
 
     // ── Helper methods ────────────────────────────────────────────────────────
-    private UUID getCurrentUserId(HttpServletRequest request) {
-        String token = request.getHeader("Authorization").substring(7);
-        return jwtTokenProvider.getUserIdFromToken(token);
+    private UUID getCurrentUserId() {
+        String principal = (String) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+        return UUID.fromString(principal);
     }
 
-    private String getCurrentRole(HttpServletRequest request) {
-        String token = request.getHeader("Authorization").substring(7);
-        return jwtTokenProvider.getRoleFromToken(token).replace("ROLE_", "");
+    private String getCurrentRole() {
+        return SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getAuthorities()
+                .iterator().next()
+                .getAuthority()
+                .replace("ROLE_", "");
     }
 
     // ── 1. Create table ───────────────────────────────────────────────────────
@@ -42,9 +45,8 @@ public class TableController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<TableResponse> createTable(
             @PathVariable UUID restaurantId,
-            @Valid @RequestBody CreateTableRequest request,
-            HttpServletRequest httpRequest) {
-        UUID ownerId = getCurrentUserId(httpRequest);
+            @Valid @RequestBody CreateTableRequest request) {
+        UUID ownerId = getCurrentUserId();
         return ApiResponse.ok("Table created successfully",
                 tableService.createTable(restaurantId, request, ownerId));
     }
@@ -53,10 +55,9 @@ public class TableController {
     @GetMapping
     @PreAuthorize("hasAnyRole('OWNER', 'SUPER_ADMIN')")
     public ApiResponse<List<TableResponse>> getTablesByRestaurant(
-            @PathVariable UUID restaurantId,
-            HttpServletRequest httpRequest) {
-        UUID callerId = getCurrentUserId(httpRequest);
-        String role = getCurrentRole(httpRequest);
+            @PathVariable UUID restaurantId) {
+        UUID callerId = getCurrentUserId();
+        String role = getCurrentRole();
         return ApiResponse.ok("Tables fetched successfully",
                 tableService.getTablesByRestaurant(restaurantId, callerId, role));
     }
@@ -66,10 +67,9 @@ public class TableController {
     @PreAuthorize("hasAnyRole('OWNER', 'SUPER_ADMIN')")
     public ApiResponse<TableResponse> getTableById(
             @PathVariable UUID restaurantId,
-            @PathVariable UUID tableId,
-            HttpServletRequest httpRequest) {
-        UUID callerId = getCurrentUserId(httpRequest);
-        String role = getCurrentRole(httpRequest);
+            @PathVariable UUID tableId) {
+        UUID callerId = getCurrentUserId();
+        String role = getCurrentRole();
         return ApiResponse.ok("Table fetched successfully",
                 tableService.getTableById(restaurantId, tableId, callerId, role));
     }
@@ -80,9 +80,8 @@ public class TableController {
     public ApiResponse<TableResponse> updateTable(
             @PathVariable UUID restaurantId,
             @PathVariable UUID tableId,
-            @Valid @RequestBody UpdateTableRequest request,
-            HttpServletRequest httpRequest) {
-        UUID ownerId = getCurrentUserId(httpRequest);
+            @Valid @RequestBody UpdateTableRequest request) {
+        UUID ownerId = getCurrentUserId();
         return ApiResponse.ok("Table updated successfully",
                 tableService.updateTable(restaurantId, tableId, request, ownerId));
     }
@@ -93,9 +92,8 @@ public class TableController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTable(
             @PathVariable UUID restaurantId,
-            @PathVariable UUID tableId,
-            HttpServletRequest httpRequest) {
-        UUID ownerId = getCurrentUserId(httpRequest);
+            @PathVariable UUID tableId) {
+        UUID ownerId = getCurrentUserId();
         tableService.deleteTable(restaurantId, tableId, ownerId);
     }
 
@@ -104,9 +102,8 @@ public class TableController {
     @PreAuthorize("hasRole('OWNER')")
     public ApiResponse<TableResponse> regenerateQrToken(
             @PathVariable UUID restaurantId,
-            @PathVariable UUID tableId,
-            HttpServletRequest httpRequest) {
-        UUID ownerId = getCurrentUserId(httpRequest);
+            @PathVariable UUID tableId) {
+        UUID ownerId = getCurrentUserId();
         return ApiResponse.ok("QR token regenerated successfully",
                 tableService.regenerateQrToken(restaurantId, tableId, ownerId));
     }

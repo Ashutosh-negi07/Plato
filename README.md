@@ -30,15 +30,17 @@ Plato is a **multi-tenant SaaS backend** for restaurants. A single deployment se
 | **Restaurant Owner / Staff** | Login with JWT → manage restaurant, menu, tables, employees, orders |
 | **Customer** | Scan QR at table → get a session token → browse menu → place orders → pay → rate |
 
-### Core flows built so far
+### Core flows built
 
 1. **Auth** — Staff JWT login, token validation, role-based access control
-2. **Users** — Super admin manages all users (OWNER, EMPLOYEE, SUPER_ADMIN roles)
+2. **Users** — Super admin manages all platform users (`OWNER`, `EMPLOYEE`, `SUPER_ADMIN` roles)
 3. **Restaurants** — Owners create and configure restaurants, settings (tax %, payment methods), and lifecycle management
+4. **Tables & QR** — Owners add tables, each gets a cryptographically secure QR token; regeneration invalidates old tokens
+5. **Employees** — Owners assign `EMPLOYEE` users to their restaurant with job roles (`MANAGER`, `CHEF`, `WAITER`, `CASHIER`)
 
 ### Planned flows (in progress)
 
-Tables & QR → Employee assignments → Menu management → Customer sessions → Cart → Orders → Payments → Feedback → WebSocket real-time kitchen updates
+Menu management → Customer sessions → Cart → Orders → Payments → Feedback → WebSocket real-time kitchen updates
 
 ---
 
@@ -77,34 +79,62 @@ backend/
     │   │   │       ├── LoginRequest.java
     │   │   │       └── LoginResponse.java
     │   │   │
-    │   │   ├── user/                          # Staff user management
-    │   │   │   ├── User.java
-    │   │   │   ├── UserRole.java              # SUPER_ADMIN | OWNER | EMPLOYEE
-    │   │   │   ├── UserStatus.java            # ACTIVE | SUSPENDED | DELETED
-    │   │   │   ├── UserRepository.java
-    │   │   │   ├── UserService.java
-    │   │   │   ├── UserServiceImpl.java
-    │   │   │   ├── UserMapper.java
-    │   │   │   ├── UserController.java
-    │   │   │   ├── DataInitializer.java       # Seeds SUPER_ADMIN on first boot
-    │   │   │   └── dto/
-    │   │   │       ├── CreateUserRequest.java
-    │   │   │       ├── UpdateUserRequest.java
-    │   │   │       └── UserResponse.java
-    │   │   │
-    │   │   ├── restaurant/                    # Restaurant management
-    │   │   │   ├── Restaurant.java
-    │   │   │   ├── RestaurantStatus.java      # ACTIVE | INACTIVE | SUSPENDED
-    │   │   │   ├── RestaurantRepository.java
-    │   │   │   ├── RestaurantService.java
-    │   │   │   ├── RestaurantServiceImpl.java
-    │   │   │   ├── RestaurantMapper.java
-    │   │   │   ├── RestaurantController.java
-    │   │   │   └── dto/
-    │   │   │       ├── CreateRestaurantRequest.java
-    │   │   │       ├── UpdateRestaurantRequest.java
-    │   │   │       ├── RestaurantSettingsRequest.java
-    │   │   │       └── RestaurantResponse.java
+    │   │   ├── modules/                       # Feature modules
+    │   │   │   ├── user/                      # Staff user management
+    │   │   │   │   ├── User.java
+    │   │   │   │   ├── UserRole.java          # SUPER_ADMIN | OWNER | EMPLOYEE
+    │   │   │   │   ├── UserStatus.java        # ACTIVE | SUSPENDED | DELETED
+    │   │   │   │   ├── UserRepository.java
+    │   │   │   │   ├── UserService.java
+    │   │   │   │   ├── UserServiceImpl.java
+    │   │   │   │   ├── UserMapper.java
+    │   │   │   │   ├── UserController.java
+    │   │   │   │   ├── DataInitializer.java   # Seeds SUPER_ADMIN on first boot
+    │   │   │   │   └── dto/
+    │   │   │   │       ├── CreateUserRequest.java
+    │   │   │   │       ├── UpdateUserRequest.java
+    │   │   │   │       └── UserResponse.java
+    │   │   │   │
+    │   │   │   ├── restaurant/                # Restaurant management
+    │   │   │   │   ├── Restaurant.java
+    │   │   │   │   ├── RestaurantStatus.java  # ACTIVE | INACTIVE | SUSPENDED
+    │   │   │   │   ├── RestaurantRepository.java
+    │   │   │   │   ├── RestaurantService.java
+    │   │   │   │   ├── RestaurantServiceImpl.java
+    │   │   │   │   ├── RestaurantMapper.java
+    │   │   │   │   ├── RestaurantController.java
+    │   │   │   │   └── dto/
+    │   │   │   │       ├── CreateRestaurantRequest.java
+    │   │   │   │       ├── UpdateRestaurantRequest.java
+    │   │   │   │       ├── RestaurantSettingsRequest.java
+    │   │   │   │       └── RestaurantResponse.java
+    │   │   │   │
+    │   │   │   ├── table/                     # Tables & QR code management
+    │   │   │   │   ├── RestaurantTable.java
+    │   │   │   │   ├── TableStatus.java       # AVAILABLE | OCCUPIED | RESERVED
+    │   │   │   │   ├── TableRepository.java
+    │   │   │   │   ├── QrTokenService.java    # SecureRandom 64-char hex token
+    │   │   │   │   ├── TableService.java
+    │   │   │   │   ├── TableServiceImpl.java
+    │   │   │   │   ├── TableMapper.java
+    │   │   │   │   ├── TableController.java
+    │   │   │   │   └── dto/
+    │   │   │   │       ├── CreateTableRequest.java
+    │   │   │   │       ├── UpdateTableRequest.java
+    │   │   │   │       └── TableResponse.java
+    │   │   │   │
+    │   │   │   └── employee/                  # Restaurant staff assignments
+    │   │   │       ├── Employee.java
+    │   │   │       ├── EmployeeRole.java      # MANAGER | CHEF | WAITER | CASHIER
+    │   │   │       ├── EmployeeRepository.java
+    │   │   │       ├── EmployeeService.java
+    │   │   │       ├── EmployeeServiceImpl.java
+    │   │   │       ├── EmployeeMapper.java
+    │   │   │       ├── EmployeeController.java
+    │   │   │       └── dto/
+    │   │   │           ├── AssignEmployeeRequest.java
+    │   │   │           ├── UpdateEmployeeRoleRequest.java
+    │   │   │           └── EmployeeResponse.java
     │   │   │
     │   │   ├── common/                        # Shared building blocks
     │   │   │   ├── BaseEntity.java            # UUID PK + createdAt + updatedAt
@@ -126,7 +156,7 @@ backend/
     │   │       ├── ResourceNotFoundException.java   # 404
     │   │       ├── ConflictException.java           # 409
     │   │       ├── UnauthorizedAccessException.java # 403
-    │   │       └── BadRequestException.java         # 400
+    │   │       └── ValidationException.java         # 400
     │   │
     │   └── resources/
     │       ├── application.yml                # Base config (uses ENV variables)
@@ -134,11 +164,13 @@ backend/
     │       └── db/migration/
     │           ├── V1__create_enums.sql       # All PostgreSQL custom enum types
     │           ├── V2__create_users.sql
-    │           └── V3__create_restaurants.sql
+    │           ├── V3__create_restaurants.sql
+    │           ├── V4__create_restaurant_tables.sql
+    │           └── V5__create_employees.sql
     │
     └── test/
         └── java/com/miniproject/plato/
-            └── (unit tests — in progress)
+            └── (unit tests — Day 13)
 ```
 
 ---
@@ -330,13 +362,50 @@ Authorization: Bearer eyJhbGci...
 
 ---
 
+### Tables & QR Codes
+
+> All endpoints require `Authorization: Bearer <token>`
+
+| Method | Endpoint | Role | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/v1/restaurants/{id}/tables` | OWNER | Create table — auto-generates QR token |
+| `GET` | `/api/v1/restaurants/{id}/tables` | OWNER / SUPER_ADMIN | List all tables for a restaurant |
+| `GET` | `/api/v1/restaurants/{id}/tables/{tableId}` | OWNER / SUPER_ADMIN | Get single table |
+| `PUT` | `/api/v1/restaurants/{id}/tables/{tableId}` | OWNER | Update capacity or label |
+| `DELETE` | `/api/v1/restaurants/{id}/tables/{tableId}` | OWNER | Hard delete a table |
+| `POST` | `/api/v1/restaurants/{id}/tables/{tableId}/qr/regenerate` | OWNER | Regenerate QR token — invalidates old URL |
+
+**Create table body**:
+```json
+{ "tableNumber": "T1", "capacity": 4, "label": "Window Seat" }
+```
+
+---
+
+### Employees
+
+> All endpoints require `Authorization: Bearer <token>`
+
+| Method | Endpoint | Role | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/v1/restaurants/{id}/employees` | OWNER | Assign a user (must have `EMPLOYEE` role) to this restaurant |
+| `GET` | `/api/v1/restaurants/{id}/employees` | OWNER / SUPER_ADMIN | List all active employees |
+| `PATCH` | `/api/v1/restaurants/{id}/employees/{eid}/role` | OWNER | Change employee's job role |
+| `DELETE` | `/api/v1/restaurants/{id}/employees/{eid}` | OWNER | Soft deactivate — sets `is_active = false` |
+
+**Assign employee body**:
+```json
+{ "userId": "uuid-of-employee-user", "role": "CHEF" }
+```
+**Employee job roles**: `MANAGER` | `CHEF` | `WAITER` | `CASHIER`
+
+---
+
 ### Upcoming Endpoints (in development)
 
 | Module | Endpoints |
 |--------|-----------|
-| Tables & QR | `POST /restaurants/{id}/tables`, `GET /tables`, `POST /tables/{id}/qr/regenerate` |
-| Employees | `POST /restaurants/{id}/employees`, `PATCH /employees/{id}/role`, `DELETE /employees/{id}` |
-| Menu | `POST /restaurants/{id}/menu/categories`, `GET /restaurants/{id}/menu` (PUBLIC), `POST /menu/items` |
+| Menu | `POST /restaurants/{id}/menu/categories`, `GET /restaurants/{id}/menu` (PUBLIC), `POST /menu/items`, `PUT /menu/items/{id}`, `PATCH /menu/items/{id}/availability` |
 | Customer Sessions | `POST /sessions/start` (PUBLIC, QR token), `POST /sessions/{id}/close` |
 | Cart | `GET /cart`, `POST /cart/items`, `PATCH /cart/items/{id}`, `DELETE /cart` |
 | Orders | `POST /orders`, `GET /restaurants/{id}/orders`, `PATCH /orders/{id}/status` |
@@ -358,8 +427,8 @@ V2__create_users.sql          # users table
 
 V3__create_restaurants.sql    # restaurants table (includes embedded settings columns)
 
-V4__create_restaurant_tables  # restaurant_tables + qr_token (planned)
-V5__create_employees          # employees with role per restaurant (planned)
+V4__create_restaurant_tables  # restaurant_tables + secure qr_token ✅ Applied
+V5__create_employees          # employees with role per restaurant   ✅ Applied
 V6__create_menu               # menu_categories + menu_items (planned)
 V7__create_customer_sessions  # customer_sessions + session_token (planned)
 V8__create_cart_items         # cart_items scoped to session (planned)
@@ -406,21 +475,21 @@ GlobalExceptionHandler           Catches ALL exceptions and maps them to
 
 - Foundation (Security, Config, Exception handling, Base entity)
 - Auth (`POST /api/v1/auth/login`)
-- User Module (all 6 CRUD endpoints)
-- Restaurant Module (all 7 endpoints including settings)
+- User Module — 6 endpoints — curl verified
+- Restaurant Module — 7 endpoints including settings — curl verified
+- Table Module — 6 endpoints + QR token generation — curl verified
+- Employee Module — 4 endpoints + soft deactivation — compiled & ready
 
 ### Modules In Progress 🔧
 
-- Tables & QR Code
-- Employees
-- Menu
-- Customer Sessions
-- Cart
-- Orders
-- Payments
-- Feedback
-- WebSocket real-time updates
-- Unit tests
+- Menu (Day 5 — categories + items + public catalog)
+- Customer Sessions (Day 7)
+- Cart (Day 8)
+- Orders + kitchen view (Day 9)
+- Payments (Day 10)
+- Feedback (Day 11)
+- WebSocket real-time updates (Day 12)
+- Unit + Integration tests (Day 13)
 
 ### Run the tests
 
