@@ -5,6 +5,7 @@ import com.miniproject.plato.security.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -69,7 +70,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/api-docs/**",
                                 "/v3/api-docs/**"
-                        ).permitAll()                                       // Swagger (dev only)
+                        ).permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/v1/restaurants/*/menu").permitAll()
+// Swagger (dev only)
                         .requestMatchers("/actuator/health").permitAll()    // health check
 
                         // Customer endpoints — protected by CustomerSessionFilter (Day 11), not JWT
