@@ -28,15 +28,35 @@ public class TableServiceImpl implements TableService {
     private final QrTokenService qrTokenService;
     private final RestaurantRepository restaurantRepository;
 
-    @Override
-    @Transactional
-    public TableResponse createTable(UUID restaurantId, CreateTableRequest request, UUID ownerId) {
-        // Verify restaurant exists and caller owns it
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /** Verifies the restaurant exists AND the caller is its owner. Returns the restaurant. */
+    private Restaurant verifyOwnership(UUID restaurantId, UUID ownerId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
         if (!restaurant.getOwnerId().equals(ownerId)) {
             throw new UnauthorizedAccessException("You do not own this restaurant");
         }
+        return restaurant;
+    }
+
+    /** Verifies restaurant exists and caller is either OWNER of it or SUPER_ADMIN. */
+    private Restaurant verifyReadAccess(UUID restaurantId, UUID callerId, String callerRole) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
+        if (!"SUPER_ADMIN".equals(callerRole) && !restaurant.getOwnerId().equals(callerId)) {
+            throw new UnauthorizedAccessException("You do not own this restaurant");
+        }
+        return restaurant;
+    }
+
+    // ── Endpoints ─────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public TableResponse createTable(UUID restaurantId, CreateTableRequest request, UUID ownerId) {
+        verifyOwnership(restaurantId, ownerId);
+
         // Prevent duplicate table numbers within the same restaurant
         if (tableRepository.existsByRestaurantIdAndTableNumber(restaurantId, request.tableNumber())) {
             throw new ConflictException(
@@ -50,16 +70,11 @@ public class TableServiceImpl implements TableService {
     @Override
     @Transactional
     public TableResponse updateTable(UUID restaurantId, UUID tableId, UpdateTableRequest request, UUID ownerId) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
-        if (!restaurant.getOwnerId().equals(ownerId)) {
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-        }
-        RestaurantTable table = tableRepository.findById(tableId)
+        verifyOwnership(restaurantId, ownerId);
+
+        RestaurantTable table = tableRepository.findByIdAndRestaurantId(tableId, restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
-        if (!table.getRestaurantId().equals(restaurantId)) {
-            throw new ResourceNotFoundException("Table", tableId);
-        }
+
         tableMapper.applyUpdate(request, table);
         return tableMapper.toResponse(table); // dirty checking saves automatically
     }
@@ -67,44 +82,29 @@ public class TableServiceImpl implements TableService {
     @Override
     @Transactional
     public void deleteTable(UUID restaurantId, UUID tableId, UUID ownerId) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
-        if (!restaurant.getOwnerId().equals(ownerId)) {
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-        }
-        RestaurantTable table = tableRepository.findById(tableId)
+        verifyOwnership(restaurantId, ownerId);
+
+        RestaurantTable table = tableRepository.findByIdAndRestaurantId(tableId, restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
-        if (!table.getRestaurantId().equals(restaurantId)) {
-            throw new ResourceNotFoundException("Table", tableId);
-        }
+
         tableRepository.delete(table);
     }
 
     @Override
     @Transactional
     public TableResponse regenerateQrToken(UUID restaurantId, UUID tableId, UUID ownerId) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
-        if (!restaurant.getOwnerId().equals(ownerId)) {
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-        }
-        RestaurantTable table = tableRepository.findById(tableId)
+        verifyOwnership(restaurantId, ownerId);
+
+        RestaurantTable table = tableRepository.findByIdAndRestaurantId(tableId, restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
-        if (!table.getRestaurantId().equals(restaurantId)) {
-            throw new ResourceNotFoundException("Table", tableId);
-        }
+
         table.setQrToken(qrTokenService.generateToken());
         return tableMapper.toResponse(table); // dirty checking saves automatically
     }
 
     @Override
     public List<TableResponse> getTablesByRestaurant(UUID restaurantId, UUID callerId, String callerRole) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
-
-        if (!"SUPER_ADMIN".equals(callerRole) && !restaurant.getOwnerId().equals(callerId)) {
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-        }
+        verifyReadAccess(restaurantId, callerId, callerRole);
 
         return tableRepository.findByRestaurantId(restaurantId)
                 .stream()
@@ -114,21 +114,10 @@ public class TableServiceImpl implements TableService {
 
     @Override
     public TableResponse getTableById(UUID restaurantId, UUID tableId, UUID callerId, String callerRole) {
-        Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
+        verifyReadAccess(restaurantId, callerId, callerRole);
 
-        if (!"SUPER_ADMIN".equals(callerRole) && !restaurant.getOwnerId().equals(callerId)) {
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-        }
-
-        RestaurantTable table = tableRepository.findById(tableId)
+        return tableRepository.findByIdAndRestaurantId(tableId, restaurantId)
+                .map(tableMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Table", tableId));
-
-        if (!table.getRestaurantId().equals(restaurantId)) {
-            throw new ResourceNotFoundException("Table", tableId); // 404 — never reveal it exists elsewhere
-        }
-
-        return tableMapper.toResponse(table);
     }
-
 }

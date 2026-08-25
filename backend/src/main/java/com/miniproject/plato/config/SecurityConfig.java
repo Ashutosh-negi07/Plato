@@ -65,14 +65,13 @@ public class SecurityConfig {
                         // Public endpoints — no token needed
                         .requestMatchers("/api/v1/auth/**").permitAll()     // login
                         .requestMatchers("/api/v1/qr/**").permitAll()       // customer QR scan
+                        .requestMatchers(HttpMethod.GET, "/api/v1/restaurants/*/menu").permitAll() // public menu catalog
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/api-docs/**",
                                 "/v3/api-docs/**"
-                        ).permitAll()
-                                .requestMatchers(HttpMethod.GET, "/api/v1/restaurants/*/menu").permitAll()
-// Swagger (dev only)
+                        ).permitAll()                                        // Swagger (dev only)
                         .requestMatchers("/actuator/health").permitAll()    // health check
 
                         // Customer endpoints — protected by CustomerSessionFilter (Day 11), not JWT

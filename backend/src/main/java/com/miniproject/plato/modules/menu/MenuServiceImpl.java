@@ -31,12 +31,23 @@ public class MenuServiceImpl implements MenuService {
     private final MenuCategoryMapper menuCategoryMapper;
     private final MenuItemMapper menuItemMapper;
 
-    // ── Private helper ────────────────────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────────────────────
 
+    /** Verifies the restaurant exists AND the caller is its owner. Returns the restaurant. */
     private Restaurant verifyOwnership(UUID restaurantId, UUID ownerId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
         if (!restaurant.getOwnerId().equals(ownerId)) {
+            throw new UnauthorizedAccessException("You do not own this restaurant");
+        }
+        return restaurant;
+    }
+
+    /** Verifies restaurant exists and caller is either OWNER of it or SUPER_ADMIN. */
+    private Restaurant verifyReadAccess(UUID restaurantId, UUID callerId, String callerRole) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
+        if (!"SUPER_ADMIN".equals(callerRole) && !restaurant.getOwnerId().equals(callerId)) {
             throw new UnauthorizedAccessException("You do not own this restaurant");
         }
         return restaurant;
@@ -59,15 +70,7 @@ public class MenuServiceImpl implements MenuService {
 
     @Override
     public List<CategoryWithItemsResponse> getCategories(UUID restaurantId, UUID callerId, String callerRole) {
-        restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
-
-        if (!"SUPER_ADMIN".equals(callerRole)) {
-            Restaurant restaurant = restaurantRepository.findById(restaurantId).get();
-            if (!restaurant.getOwnerId().equals(callerId)) {
-                throw new UnauthorizedAccessException("You do not own this restaurant");
-            }
-        }
+        verifyReadAccess(restaurantId, callerId, callerRole);
 
         return menuCategoryRepository.findByRestaurantIdOrderByDisplayOrderAsc(restaurantId)
                 .stream()
@@ -178,4 +181,3 @@ public class MenuServiceImpl implements MenuService {
                 .toList();
     }
 }
-
