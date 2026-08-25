@@ -10,4 +10,5 @@ public interface TableRepository extends JpaRepository<RestaurantTable, UUID> {
     List<RestaurantTable> findByRestaurantId(UUID restaurantId);
     boolean existsByRestaurantIdAndTableNumber(UUID restaurantId, String tableNumber);
     Optional<RestaurantTable> findByQrToken(String qrToken);
+    Optional<RestaurantTable> findByIdAndRestaurantId(UUID id, UUID restaurantId);
 }

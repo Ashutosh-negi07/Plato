@@ -19,13 +19,24 @@ import java.util.UUID;
 @Slf4j
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class RestaurantServiceImpl implements RestaurantService{
+public class RestaurantServiceImpl implements RestaurantService {
 
     private final RestaurantMapper restaurantMapper;
     private final RestaurantRepository restaurantRepository;
 
+    // ── Private helpers ───────────────────────────────────────────────────────
 
+    /** Verifies the restaurant exists AND the caller is its owner. Returns the restaurant. */
+    private Restaurant verifyOwnership(UUID restaurantId, UUID ownerId) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
+        if (!restaurant.getOwnerId().equals(ownerId)) {
+            throw new UnauthorizedAccessException("You do not own this restaurant");
+        }
+        return restaurant;
+    }
 
+    // ── Endpoints ─────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -51,7 +62,7 @@ public class RestaurantServiceImpl implements RestaurantService{
     @Override
     public RestaurantResponse getRestaurantById(UUID id, UUID callerId, String role) {
         Restaurant restaurant = restaurantRepository.findById(id)
-                .orElseThrow(()-> new ResourceNotFoundException("Restaurant", id));
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", id));
 
         // OWNER can only see their own
         if (!"SUPER_ADMIN".equals(role) && !restaurant.getOwnerId().equals(callerId)) {
@@ -64,12 +75,7 @@ public class RestaurantServiceImpl implements RestaurantService{
     @Override
     @Transactional
     public RestaurantResponse updateRestaurant(UUID id, UpdateRestaurantRequest request, UUID ownerId) {
-        Restaurant restaurant = restaurantRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", id));
-
-        if (!restaurant.getOwnerId().equals(ownerId))
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-
+        Restaurant restaurant = verifyOwnership(id, ownerId);
         restaurantMapper.applyUpdate(restaurant, request);  // ← mapper handles all null-checks
         return restaurantMapper.toResponse(restaurant);     // dirty checking → auto UPDATE
     }
@@ -77,12 +83,7 @@ public class RestaurantServiceImpl implements RestaurantService{
     @Override
     @Transactional
     public RestaurantResponse updateSettings(UUID id, RestaurantSettingsRequest request, UUID ownerId) {
-        Restaurant restaurant = restaurantRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", id));
-
-        if (!restaurant.getOwnerId().equals(ownerId))
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-
+        Restaurant restaurant = verifyOwnership(id, ownerId);
         restaurantMapper.applySettings(restaurant, request); // ← mapper handles it
         return restaurantMapper.toResponse(restaurant);
     }
@@ -100,18 +101,8 @@ public class RestaurantServiceImpl implements RestaurantService{
     @Override
     @Transactional
     public void deleteRestaurant(UUID id, UUID ownerId) {
-        Restaurant restaurant = restaurantRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", id));
-
-        if (!restaurant.getOwnerId().equals(ownerId)) {
-            throw new UnauthorizedAccessException("You do not own this restaurant");
-        }
-
+        Restaurant restaurant = verifyOwnership(id, ownerId);
         restaurant.setStatus(RestaurantStatus.INACTIVE);
         // dirty checking → UPDATE restaurants SET status = 'INACTIVE' WHERE id = ?
     }
-
-
-
-
 }
