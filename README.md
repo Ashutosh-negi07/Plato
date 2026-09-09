@@ -401,15 +401,45 @@ Authorization: Bearer eyJhbGci...
 
 ---
 
+### Menu
+
+> Management endpoints require `Authorization: Bearer <token>` (OWNER)  
+> Public catalog is open to customers without credentials.
+
+| Method | Endpoint | Role | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/v1/restaurants/{id}/menu/categories` | OWNER | Create menu category |
+| `GET` | `/api/v1/restaurants/{id}/menu` | PUBLIC | View full active restaurant menu catalog |
+| `POST` | `/api/v1/restaurants/{id}/menu/items` | OWNER | Add menu item under a category |
+| `PUT` | `/api/v1/restaurants/{id}/menu/items/{itemId}` | OWNER | Update dish price, name, description |
+| `PATCH` | `/api/v1/restaurants/{id}/menu/items/{itemId}/availability` | OWNER | Toggle dish availability (in stock / out of stock) |
+
+---
+
+### Customer Sessions
+
+> Customer entry is initiated by scanning the physical table QR code.  
+> Authenticated via `X-Session-Token` header.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/v1/customer/sessions/start` | PUBLIC (QR Token) | Start or rejoin a dining session at a table |
+| `GET` | `/api/v1/customer/sessions/current` | `X-Session-Token` | Get active session metadata (extends 30-min window) |
+| `POST` | `/api/v1/restaurants/{restaurantId}/sessions/{sessionId}/close` | OWNER / EMPLOYEE / SUPER_ADMIN | Staff closes session and releases table to AVAILABLE |
+
+**Start session body**:
+```json
+{ "qrToken": "uuid-token-from-table-qr-sticker", "guestCount": 2 }
+```
+
+---
+
 ### Upcoming Endpoints (in development)
 
 | Module | Endpoints |
 |--------|-----------|
-| Menu | `POST /restaurants/{id}/menu/categories`, `GET /restaurants/{id}/menu` (PUBLIC), `POST /menu/items`, `PUT /menu/items/{id}`, `PATCH /menu/items/{id}/availability` |
-| Customer Sessions | `POST /sessions/start` (PUBLIC, QR token), `POST /sessions/{id}/close` |
-| Cart | `GET /cart`, `POST /cart/items`, `PATCH /cart/items/{id}`, `DELETE /cart` |
-| Orders | `POST /orders`, `GET /restaurants/{id}/orders`, `PATCH /orders/{id}/status` |
-| Payments | `POST /payments/request-bill`, `GET /payments/{sessionId}/bill`, `PATCH /payments/{id}/complete` |
+| Orders | `POST /customer/orders`, `GET /customer/orders`, `PATCH /customer/orders/{id}/cancel`, `PATCH /orders/{id}/status` |
+| Billing & Payments | `POST /payments/request-bill`, `GET /payments/{sessionId}/bill`, `PATCH /payments/{id}/complete` |
 | Feedback | `POST /feedback`, `GET /restaurants/{id}/feedback/summary` |
 
 ---
@@ -427,14 +457,13 @@ V2__create_users.sql          # users table
 
 V3__create_restaurants.sql    # restaurants table (includes embedded settings columns)
 
-V4__create_restaurant_tables  # restaurant_tables + secure qr_token ✅ Applied
-V5__create_employees          # employees with role per restaurant   ✅ Applied
-V6__create_menu               # menu_categories + menu_items (planned)
-V7__create_customer_sessions  # customer_sessions + session_token (planned)
-V8__create_cart_items         # cart_items scoped to session (planned)
-V9__create_orders             # orders + order_items with state machine (planned)
-V10__create_payments          # payments with bill breakdown (planned)
-V11__create_feedback          # feedback with rating 1–5 (planned)
+V4__create_restaurant_tables  # restaurant_tables + secure qr_token   ✅ Applied
+V5__create_employees          # employees with role per restaurant     ✅ Applied
+V6__create_menu               # menu_categories + menu_items          ✅ Applied
+V7__create_customer_sessions  # customer_sessions + session_token     ✅ Applied
+V8__create_orders             # orders + order_items (next)
+V9__create_payments           # payments with bill breakdown (planned)
+V10__create_feedback          # feedback with rating 1–5 (planned)
 ```
 
 ---
@@ -479,17 +508,16 @@ GlobalExceptionHandler           Catches ALL exceptions and maps them to
 - Restaurant Module — 7 endpoints including settings — curl verified
 - Table Module — 6 endpoints + QR token generation — curl verified
 - Employee Module — 4 endpoints + soft deactivation — compiled & ready
+- Menu Module — 5 endpoints (categories, items, availability, public catalog) ✅
+- Customer Session Module — 3 endpoints (start, current/heartbeat, staff close) ✅
 
 ### Modules In Progress 🔧
 
-- Menu (Day 5 — categories + items + public catalog)
-- Customer Sessions (Day 7)
-- Cart (Day 8)
-- Orders + kitchen view (Day 9)
-- Payments (Day 10)
-- Feedback (Day 11)
-- WebSocket real-time updates (Day 12)
-- Unit + Integration tests (Day 13)
+- Orders + kitchen view (V8)
+- Billing & Payments (V9)
+- Feedback (V10)
+- WebSocket real-time updates
+- Unit + Integration tests
 
 ### Run the tests
 
