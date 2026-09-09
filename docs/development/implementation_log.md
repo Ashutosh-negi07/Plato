@@ -18,12 +18,12 @@
 | 7 | [Spring Security & JWT — Day 3 Task 1](#7-spring-security--jwt--day-3-task-1) | Week 1 · Day 3 | ✅ Done |
 | 8 | [Auth Module — Day 3 Task 3](#8-auth-module--day-3-task-3) | Week 1 · Day 3 | ✅ Done |
 | 9 | [Day 4 — Exception Handler & Hibernate Enum Fix](#9-day-4--exception-handler-completion--hibernate-enum-fix) | Week 1 · Day 4 | ✅ Done |
-| 10 | [Redis Infrastructure Setup — Day 6](#10-redis-infrastructure-setup--day-6) | Week 2 · Day 6 | 🔲 In Progress |
-| 11 | [Restaurant Module — Day 6](#11-restaurant-module--day-6) | Week 2 · Day 6 | 🔲 In Progress |
-| 12 | Tables & QR | Week 2 · Day 7 | 🔲 Pending |
-| 13 | Employees | Week 2 · Day 8 | 🔲 Pending |
-| 14 | Menu | Week 2 · Day 9 | 🔲 Pending |
-| 15 | Customer Sessions | Week 3 · Day 11 | 🔲 Pending |
+| 10 | [Redis Infrastructure Setup — Day 6](#10-redis-infrastructure-setup--day-6) | Week 2 · Day 6 | ✅ Done |
+| 11 | [Restaurant Module — Day 6](#11-restaurant-module--day-6) | Week 2 · Day 6 | ✅ Done |
+| 12 | Tables & QR | Week 2 · Day 7 | ✅ Done |
+| 13 | Employees | Week 2 · Day 8 | ✅ Done |
+| 14 | Menu | Week 2 · Day 9 | ✅ Done |
+| 15 | Customer Sessions | Week 3 · Day 11 | ✅ Done |
 | 16 | Cart | Week 3 · Day 12 | 🔲 Pending |
 | 17 | Orders | Week 3 · Day 13 | 🔲 Pending |
 | 18 | Payments | Week 3 · Day 14 | 🔲 Pending |
