@@ -434,13 +434,45 @@ Authorization: Bearer eyJhbGci...
 
 ---
 
+### Orders
+
+> Customer order actions authenticated via `X-Session-Token` header.  
+> Kitchen & staff management authenticated via `Authorization: Bearer <token>`.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/v1/customer/orders` | `X-Session-Token` | Place order from table (captures price snapshot) |
+| `GET` | `/api/v1/customer/orders` | `X-Session-Token` | List all orders for current dining session |
+| `GET` | `/api/v1/customer/orders/{id}` | `X-Session-Token` | Get order status and line items |
+| `PATCH` | `/api/v1/customer/orders/{id}/cancel` | `X-Session-Token` | Cancel pending order |
+| `DELETE` | `/api/v1/customer/orders/{id}/items/{itemId}` | `X-Session-Token` | Remove line item from pending order |
+| `GET` | `/api/v1/restaurants/{id}/orders` | OWNER / EMPLOYEE / SUPER_ADMIN | Live kitchen order queue (FIFO sorted) |
+| `PATCH` | `/api/v1/orders/{id}/status` | OWNER / EMPLOYEE / SUPER_ADMIN | Advance kitchen order stage (ACCEPTED -> PREPARING -> READY -> SERVED) |
+
+---
+
+### Billing & Payments
+
+> Customer actions authenticated via `X-Session-Token` header.  
+> Staff checkout authenticated via `Authorization: Bearer <token>`.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/customer/billing/summary` | `X-Session-Token` | Real-time bill summary aggregated across all orders |
+| `POST` | `/api/v1/customer/billing/request-bill` | `X-Session-Token` | Request bill with payment method (CASH, CARD, UPI) |
+| `GET` | `/api/v1/customer/billing/payment` | `X-Session-Token` | Check payment status for current session |
+| `GET` | `/api/v1/restaurants/{id}/payments` | OWNER / EMPLOYEE / SUPER_ADMIN | List payments / bill requests for a restaurant |
+| `GET` | `/api/v1/restaurants/{id}/payments/{id}` | OWNER / EMPLOYEE / SUPER_ADMIN | View specific payment details |
+| `POST` | `/api/v1/restaurants/{id}/payments/{id}/complete` | OWNER / EMPLOYEE / SUPER_ADMIN | Confirm payment, close session, and release table |
+
+---
+
 ### Upcoming Endpoints (in development)
 
 | Module | Endpoints |
 |--------|-----------|
-| Orders | `POST /customer/orders`, `GET /customer/orders`, `PATCH /customer/orders/{id}/cancel`, `PATCH /orders/{id}/status` |
-| Billing & Payments | `POST /payments/request-bill`, `GET /payments/{sessionId}/bill`, `PATCH /payments/{id}/complete` |
 | Feedback | `POST /feedback`, `GET /restaurants/{id}/feedback/summary` |
+| WebSockets | Real-time kitchen & order status pushes |
 
 ---
 
@@ -461,8 +493,8 @@ V4__create_restaurant_tables  # restaurant_tables + secure qr_token   ✅ Applie
 V5__create_employees          # employees with role per restaurant     ✅ Applied
 V6__create_menu               # menu_categories + menu_items          ✅ Applied
 V7__create_customer_sessions  # customer_sessions + session_token     ✅ Applied
-V8__create_orders             # orders + order_items (next)
-V9__create_payments           # payments with bill breakdown (planned)
+V8__create_orders             # orders + order_items                  ✅ Applied
+V9__create_payments           # payments with bill breakdown          ✅ Applied
 V10__create_feedback          # feedback with rating 1–5 (planned)
 ```
 
@@ -510,11 +542,11 @@ GlobalExceptionHandler           Catches ALL exceptions and maps them to
 - Employee Module — 4 endpoints + soft deactivation — compiled & ready
 - Menu Module — 5 endpoints (categories, items, availability, public catalog) ✅
 - Customer Session Module — 3 endpoints (start, current/heartbeat, staff close) ✅
+- Order Module — 7 endpoints (place, view, cancel, remove item, kitchen workflow) ✅
+- Billing & Payments Module — 6 endpoints (summary, request bill, complete payment, table release) ✅
 
 ### Modules In Progress 🔧
 
-- Orders + kitchen view (V8)
-- Billing & Payments (V9)
 - Feedback (V10)
 - WebSocket real-time updates
 - Unit + Integration tests
