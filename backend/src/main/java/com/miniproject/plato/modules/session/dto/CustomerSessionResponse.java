@@ -1,5 +1,4 @@
-
-    package com.miniproject.plato.modules.session.dto;
+package com.miniproject.plato.modules.session.dto;
 
 import com.miniproject.plato.modules.session.SessionStatus;
 import lombok.Builder;

@@ -29,4 +29,9 @@ public class ResourceNotFoundException extends PlatoException {
         super(resource + " not found with " + field + ": " + value, HttpStatus.NOT_FOUND);
     }
 
+    /** Custom message — for cases where the standard template doesn't fit (e.g. QR token lookups). */
+    public ResourceNotFoundException(String message) {
+        super(message, HttpStatus.NOT_FOUND);
+    }
+
 }
