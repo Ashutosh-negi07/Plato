@@ -24,9 +24,9 @@
 | 13 | Employees | Week 2 · Day 8 | ✅ Done |
 | 14 | Menu | Week 2 · Day 9 | ✅ Done |
 | 15 | Customer Sessions | Week 3 · Day 11 | ✅ Done |
-| 16 | Cart | Week 3 · Day 12 | 🔲 Pending |
-| 17 | Orders | Week 3 · Day 13 | 🔲 Pending |
-| 18 | Payments | Week 3 · Day 14 | 🔲 Pending |
+| 16 | Cart (Direct Order Flow) | Week 3 · Day 12 | ✅ Done |
+| 17 | Orders | Week 3 · Day 13 | ✅ Done |
+| 18 | Payments & Billing | Week 3 · Day 14 | ✅ Done |
 | 19 | Feedback | Week 3 · Day 15 | 🔲 Pending |
 | 20 | WebSockets | Week 4 · Day 16 | 🔲 Pending |
 | 21 | Analytics | Week 4 · Day 17 | 🔲 Pending |
