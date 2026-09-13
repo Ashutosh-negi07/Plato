@@ -124,6 +124,10 @@ public class CustomerSessionServiceImpl implements CustomerSessionService {
         CustomerSession session = sessionRepository.findBySessionToken(sessionToken)
                 .orElseThrow(() -> new SessionExpiredException("Invalid session token"));
 
+        if (session.getStatus() == SessionStatus.CLOSED) {
+            throw new SessionExpiredException("This session has already been closed. Please scan the QR code to start a new session.");
+        }
+
         if (session.isExpired()) {
             session.setStatus(SessionStatus.EXPIRED);
             session.setEndedAt(LocalDateTime.now());
